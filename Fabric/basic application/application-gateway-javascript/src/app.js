@@ -104,21 +104,15 @@ async function main() {
 
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
         await initLedger(contract);
+        // await getAllAssets(contract);
+        // await createAsset(contract);
+        // await transferAssetAsync(contract);
+        // await readAssetByID(contract);
 
-        // Return all the current assets on the ledger.
-        await getAllAssets(contract);
-
-        // Create a new asset on the ledger.
-        await createAsset(contract);
-
-        // Update an existing asset asynchronously.
-        await transferAssetAsync(contract);
-
-        // Get the asset details by assetID.
-        await readAssetByID(contract);
-
-        // Update an asset which does not exist.
-        await updateNonExistentAsset(contract);
+        // create shared private data between org1 and org2
+        await createSharedPrivateAsset(contract)
+        // read all the assets on the ledger
+        await getAllAssets(contract)
     } finally {
         gateway.close();
         client.close();
