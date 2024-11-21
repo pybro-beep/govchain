@@ -136,7 +136,7 @@ class AssetTransfer extends Contract {
         }
         return assetJSON.toString();
     }
-    // add ReadPrivateData to support the use of private collections
+    // add ReadAsset support for the use of private collections of the current client
     async ReadPrivateAsset(ctx, id) {
         const privateCollectionName = `Org${ctx.clientIdentity.getMSPID()}MSPPrivateCollection`;
         const assetJSON = await ctx.stub.getPrivateData(privateCollectionName, id);
@@ -145,6 +145,16 @@ class AssetTransfer extends Contract {
         }
         return assetJSON.toString();
     }
+    // ReadAsset support for reading data from the shared private data collection between org1 and org2
+    async ReadSharedPrivateAsset(ctx, id) {
+        const sharedCollectionName = 'SharedPrivateCollection';
+        const assetJSON = await ctx.stub.getPrivateData(sharedCollectionName, id);
+        if (!assetJSON || assetJSON.length === 0) {
+            throw new Error(`Shared private asset with ID ${id} does not exist`);
+        }
+        return assetJSON.toString();
+    }
+
 
 
     // UpdateAsset updates an existing asset in the world state with provided parameters.
