@@ -227,6 +227,31 @@ async function createPrivateAsset(contract) {
     await contract.submitTransaction('CreatePrivateAsset', { transientData: assetTransient });
     console.log('*** Private Asset created successfully');
 }
+/*
+same as createAsset, but adds asset to the shared private data collection between org1 and org2.
+This function will propagate the private data (transient data) from the creating peer to the peers of Org1 and Org2
+using the Gossip protocol.
+*/
+//WARN: will error if client peer does not fullfill the policy requirements for the sharedPrivateCollection
+async function createSharedPrivateAsset(contract) {
+    console.log('\n--> Submit Transaction: CreateSharedPrivateAsset, creating a shared private asset');
+    
+    const assetTransient = {
+        asset: Buffer.from(
+            JSON.stringify({
+                ID: 'sharedAsset1',
+                Color: 'red',
+                Size: 15,
+                Owner: 'Alice',
+                AppraisedValue: 1000
+            })
+        ),
+    };
+
+    await contract.submitTransaction('CreateSharedPrivateAsset', { transientData: assetTransient });
+    console.log('*** Shared Private Asset created successfully');
+}
+
 
 
 /**
