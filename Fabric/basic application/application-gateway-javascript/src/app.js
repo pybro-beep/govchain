@@ -208,6 +208,26 @@ async function createAsset(contract) {
 
     console.log('*** Transaction committed successfully');
 }
+// same as createAsset, but adds asset to private collection instead
+async function createPrivateAsset(contract) {
+    console.log('\n--> Submit Transaction: CreatePrivateAsset, creating a private asset');
+    
+    const assetTransient = {
+        asset: Buffer.from(
+            JSON.stringify({
+                ID: 'privateAsset1',
+                Color: 'blue',
+                Size: 10,
+                Owner: 'Alice',
+                AppraisedValue: 500
+            })
+        ),
+    };
+
+    await contract.submitTransaction('CreatePrivateAsset', { transientData: assetTransient });
+    console.log('*** Private Asset created successfully');
+}
+
 
 /**
  * Submit transaction asynchronously, allowing the application to process the smart contract response (e.g. update a UI)
