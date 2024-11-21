@@ -106,6 +106,26 @@ class AssetTransfer extends Contract {
         await ctx.stub.putPrivateData(privateCollectionName, asset.ID, Buffer.from(JSON.stringify(asset)));
         return JSON.stringify(asset);
     }
+    // create private data shared between the two orgs using their shared private data collection
+    async CreateSharedPrivateAsset(ctx, id, color, size, owner, appraisedValue) {
+        const transientData = ctx.stub.getTransient();
+        if (!transientData.has('asset')) {
+            throw new Error('The transient data must contain an "asset" key');
+        }
+
+        const assetData = transientData.get('asset').toString('utf8');
+        const asset = JSON.parse(assetData);
+
+        if (!asset.ID || !asset.Color || !asset.Size || !asset.Owner || !asset.AppraisedValue) {
+            throw new Error('Asset object must contain ID, Color, Size, Owner, and AppraisedValue');
+        }
+
+        const sharedCollectionName = 'SharedPrivateCollection';
+
+        await ctx.stub.putPrivateData(sharedCollectionName, asset.ID, Buffer.from(JSON.stringify(asset)));
+        return JSON.stringify(asset);
+    }
+
 
 
     // ReadAsset returns the asset stored in the world state with given id.
