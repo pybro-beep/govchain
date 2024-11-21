@@ -154,6 +154,12 @@ class AssetTransfer extends Contract {
         }
         return ctx.stub.deleteState(id);
     }
+    // DeleteAsset for private data collections
+    async DeletePrivateAsset(ctx, id) {
+        const privateCollectionName = `Org${ctx.clientIdentity.getMSPID()}MSPPrivateCollection`;
+        await ctx.stub.deletePrivateData(privateCollectionName, id);
+    }
+
 
     // AssetExists returns true when asset with given ID exists in world state.
     async AssetExists(ctx, id) {
