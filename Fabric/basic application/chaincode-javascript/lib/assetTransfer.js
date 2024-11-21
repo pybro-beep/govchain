@@ -116,6 +116,16 @@ class AssetTransfer extends Contract {
         }
         return assetJSON.toString();
     }
+    // add ReadPrivateData to support the use of private collections
+    async ReadPrivateAsset(ctx, id) {
+        const privateCollectionName = `Org${ctx.clientIdentity.getMSPID()}MSPPrivateCollection`;
+        const assetJSON = await ctx.stub.getPrivateData(privateCollectionName, id);
+        if (!assetJSON || assetJSON.length === 0) {
+            throw new Error(`Private asset with ID ${id} does not exist`);
+        }
+        return assetJSON.toString();
+    }
+
 
     // UpdateAsset updates an existing asset in the world state with provided parameters.
     async UpdateAsset(ctx, id, color, size, owner, appraisedValue) {
