@@ -87,6 +87,26 @@ class AssetTransfer extends Contract {
         await ctx.stub.putState(id, Buffer.from(stringify(sortKeysRecursive(asset))));
         return JSON.stringify(asset);
     }
+    // create private asset by writing transient data
+    async CreatePrivateAsset(ctx, id, color, size, owner, appraisedValue) {
+        const transientData = ctx.stub.getTransient();
+        if (!transientData.has('asset')) {
+            throw new Error('The transient data must contain an "asset" key');
+        }
+
+        const assetData = transientData.get('asset').toString('utf8');
+        const asset = JSON.parse(assetData);
+
+        if (!asset.ID || !asset.Color || !asset.Size || !asset.Owner || !asset.AppraisedValue) {
+            throw new Error('Asset object must contain ID, Color, Size, Owner, and AppraisedValue');
+        }
+
+        const privateCollectionName = `Org${ctx.clientIdentity.getMSPID()}MSPPrivateCollection`;
+
+        await ctx.stub.putPrivateData(privateCollectionName, asset.ID, Buffer.from(JSON.stringify(asset)));
+        return JSON.stringify(asset);
+    }
+
 
     // ReadAsset returns the asset stored in the world state with given id.
     async ReadAsset(ctx, id) {
