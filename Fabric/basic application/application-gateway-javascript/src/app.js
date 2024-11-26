@@ -12,7 +12,7 @@ const path = require('node:path');
 const { TextDecoder } = require('node:util');
 
 const channelName = envOrDefault('CHANNEL_NAME', 'mychannel');
-const chaincodeName = envOrDefault('CHAINCODE_NAME', 'basic');
+const chaincodeName = envOrDefault('CHAINCODE_NAME', 'basic-private-cc');
 const mspId = envOrDefault('MSP_ID', 'Org1MSP');
 
 // Path to crypto materials.
@@ -109,6 +109,7 @@ async function main() {
         // await transferAssetAsync(contract);
         // await readAssetByID(contract);
 
+        await createPrivateAsset(contract)
         // create shared private data between org1 and org2
         await createSharedPrivateAsset(contract)
         // read all the assets on the ledger
