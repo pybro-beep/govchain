@@ -107,7 +107,7 @@ class AssetTransfer extends Contract {
         return JSON.stringify(asset);
     }
     // create private data shared between the two orgs using their shared private data collection
-    async CreateSharedPrivateAsset(ctx, id, color, size, owner, appraisedValue) {
+    async CreateSharedPrivateAsset(ctx) {
         const transientData = ctx.stub.getTransient();
         if (!transientData.has('asset')) {
             throw new Error('The transient data must contain an "asset" key');

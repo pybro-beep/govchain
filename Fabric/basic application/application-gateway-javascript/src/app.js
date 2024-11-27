@@ -108,8 +108,6 @@ async function main() {
         // await createAsset(contract);
         // await transferAssetAsync(contract);
         // await readAssetByID(contract);
-
-        await createPrivateAsset(contract)
         // create shared private data between org1 and org2
         await createSharedPrivateAsset(contract)
         // read all the assets on the ledger
@@ -206,7 +204,7 @@ async function createAsset(contract) {
 // same as createAsset, but adds asset to private collection instead
 async function createPrivateAsset(contract) {
     console.log('\n--> Submit Transaction: CreatePrivateAsset, creating a private asset');
-    
+
     const assetTransient = {
         asset: Buffer.from(
             JSON.stringify({
@@ -219,9 +217,15 @@ async function createPrivateAsset(contract) {
         ),
     };
 
-    await contract.submitTransaction('CreatePrivateAsset', { transientData: assetTransient });
+    // Create the transaction and set transient data
+    const transaction = contract.createTransaction('CreatePrivateAsset');
+    transaction.setTransient(assetTransient);
+
+    // Submit the transaction
+    await transaction.submit();
     console.log('*** Private Asset created successfully');
 }
+
 /*
 same as createAsset, but adds asset to the shared private data collection between org1 and org2.
 This function will propagate the private data (transient data) from the creating peer to the peers of Org1 and Org2
@@ -230,7 +234,7 @@ using the Gossip protocol.
 //WARN: will error if client peer does not fullfill the policy requirements for the sharedPrivateCollection
 async function createSharedPrivateAsset(contract) {
     console.log('\n--> Submit Transaction: CreateSharedPrivateAsset, creating a shared private asset');
-    
+
     const assetTransient = {
         asset: Buffer.from(
             JSON.stringify({
@@ -243,9 +247,17 @@ async function createSharedPrivateAsset(contract) {
         ),
     };
 
-    await contract.submitTransaction('CreateSharedPrivateAsset', { transientData: assetTransient });
-    console.log('*** Shared Private Asset created successfully');
+    // submit the transaction with transient data
+    try {
+        const transaction = await contract.submit('CreateSharedPrivateAsset', {transientData: assetTransient,});
+        console.log('***** Transaction CreateSharedPrivateAsset Success');
+        console.log(transaction.toString());
+    } catch (err) {
+        console.log('***** Transaction CreateSharedPrivateAsset Failed due to Error:');
+        console.error(err);
+    }
 }
+
 
 
 
