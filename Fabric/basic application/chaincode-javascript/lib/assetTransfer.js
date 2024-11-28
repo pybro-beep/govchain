@@ -11,13 +11,25 @@ const stringify  = require('json-stringify-deterministic');
 const sortKeysRecursive  = require('sort-keys-recursive');
 const { Contract } = require('fabric-contract-api');
 /*
-class Asset {
-    constructor(id, owner, value, description, timestamp) {
-        this.id = id;              // Unique identifier
-        this.owner = owner;        // Owner of the asset
-        this.value = value;        // Value of the asset
-        this.description = description; // Additional details
-        this.timestamp = timestamp || new Date().toISOString(); // Creation timestamp
+class Request {
+    constructor(id, requester, responder, transientData) {
+        this.id = id;
+        this.responder = responder;
+        this.requester = requester;
+        this.timestamp = new Date().toISOString();
+        // Transient:
+        this.transientData = transientData;
+    }
+}
+class Response {
+    constructor(id, request_id, requester, responder, transientData) {
+        this.id = id;
+        this.request_id = request_id;
+        this.responder = responder;
+        this.requester = requester;
+        this.timestamp = new Date().toISOString();
+        // Transient:
+        this.transientData = transientData;
     }
 }
 

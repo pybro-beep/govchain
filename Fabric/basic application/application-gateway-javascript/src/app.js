@@ -152,7 +152,6 @@ async function newSigner() {
     const privateKey = crypto.createPrivateKey(privateKeyPem);
     return signers.newPrivateKeySigner(privateKey);
 }
-
 /**
  * This type of transaction would typically only be run once by an application the first time it was started after its
  * initial deployment. A new version of the chaincode deployed later would likely not need to run an "init" function.
@@ -181,7 +180,88 @@ async function getAllAssets(contract) {
     const result = JSON.parse(resultJson);
     console.log('*** Result:', result);
 }
+// NEW:
+class Request {
+    constructor(id, requester, responder, transientData) {
+        this.id = id;
+        this.responder = responder;
+        this.requester = requester;
+        this.timestamp = new Date().toISOString();
+        // Transient:
+        this.transientData = transientData;
+    }
+}
+class Response {
+    constructor(id, request_id, requester, responder, transientData) {
+        this.id = id;
+        this.request_id = request_id;
+        this.responder = responder;
+        this.requester = requester;
+        this.timestamp = new Date().toISOString();
+        // Transient:
+        this.transientData = transientData;
+    }
+}
+async function createPrivateRequest(contract, request) {
+    console.log(
+        'Sumbit Transaction: CreatePrivateRequest'
+    );
+    const transaction = await contract.createTransaction(
+        'CreatePrivateRequest',
+        request.id,
+        request.requester,
+        request.responder,
+        request.timestamp
+    );
+    const transient = {
+        asset: Buffer.from(
+            JSON.stringify({
+                data: request.transientData,
+            })
+        ),
+    };
+    transaction.setTransient(transient);
+    try {
+        await transaction.submit();
+        console.log("transaction submitted successfully:");
+        console.log(transaction.toString());
+    } catch (err) {
+        console.error("transaction failed:");
+        console.error(err.toString());
+    }
 
+}
+async function createPrivateResponse(contract, response) {
+    console.log(
+        'Sumbit Transaction: CreatePrivateResponse'
+    );
+    const transaction = await contract.createTransaction(
+        'CreatePrivateResponse',
+        response.id,
+        response.request_id,
+        response.requester,
+        response.responder,
+        response.timestamp
+    );
+    const transient = {
+        asset: Buffer.from(
+            JSON.stringify({
+                data: response.transientData,
+            })
+        ),
+    };
+    transaction.setTransient(transient);
+    try {
+        await transaction.submit();
+        console.log("transaction submitted successfully:");
+        console.log(transaction.toString());
+    } catch (err) {
+        console.error("transaction failed:");
+        console.error(err.toString());
+    }
+
+}
+// OLD:
 /**
  * Submit a transaction synchronously, blocking until it has been committed to the ledger.
  */
