@@ -36,51 +36,16 @@ class Response {
 module.exports = Asset;
 */
 class AssetTransfer extends Contract {
-
     async InitLedger(ctx) {
         const assets = [
             {
-                ID: 'asset1',
-                Color: 'blue',
-                Size: 5,
-                Owner: 'Tomoko',
-                AppraisedValue: 300,
+                ID: '0',
+                Owner: 'Null',
             },
             {
-                ID: 'asset2',
-                Color: 'red',
-                Size: 5,
-                Owner: 'Brad',
-                AppraisedValue: 400,
-            },
-            {
-                ID: 'asset3',
-                Color: 'green',
-                Size: 10,
-                Owner: 'Jin Soo',
-                AppraisedValue: 500,
-            },
-            {
-                ID: 'asset4',
-                Color: 'yellow',
-                Size: 10,
-                Owner: 'Max',
-                AppraisedValue: 600,
-            },
-            {
-                ID: 'asset5',
-                Color: 'black',
-                Size: 15,
-                Owner: 'Adriana',
-                AppraisedValue: 700,
-            },
-            {
-                ID: 'asset6',
-                Color: 'white',
-                Size: 15,
-                Owner: 'Michel',
-                AppraisedValue: 800,
-            },
+                ID: '1',
+                Owner: '0',
+            }
         ];
 
         for (const asset of assets) {
@@ -93,6 +58,79 @@ class AssetTransfer extends Contract {
         }
     }
 
+    async CreatePrivateRequest(ctx, id, requester, responder, timestamp) {
+        // FIXME: event not being set/thrown/used in app.js
+        const transientData = ctx.stub.getTransient();
+        if (!transientData.has('data')) {
+            throw new Error('The transient data must contain a "data" key');
+        }
+
+        // Transient data
+        const data = JSON.parse(transientData.get('data').toString('utf8'));
+        const privateCollectionName = `Org${ctx.clientIdentity.getMSPID()}MSPPrivateCollection`;
+        try {
+            await ctx.stub.putPrivateData(privateCollectionName, id, Buffer.from(JSON.stringify(data)));
+            console.log(`put private data with ID ${id}:\n${Buffer.from(JSON.stringify(data))}`)
+        } catch (err) {
+            console.error(`Failed to put private data:\n${err.toString()}`)
+        }
+
+        // Normal data
+        const request = {
+                        id: id,
+                        requester: requester,
+                        responder: responder,
+                        timestamp: timestamp
+                    }
+        try {
+        await ctx.stub.putState(id, Buffer.from(
+            stringify(
+                sortKeysRecursive(request)
+            )
+        ));
+        console.log(`put data of request ${id}:\n${stringify(sortKeysRecursive(request))}`);
+        } catch (err) {
+        console.error(`failed to put data of request ${id} with error:\n${err.toString()}`);
+        }
+        return JSON.stringify(request);
+    }
+    async CreatePrivateResponse(ctx, id, request_id, requester, responder, timestamp) {
+        // FIXME: event not being set/thrown/used in app.js
+        const transientData = ctx.stub.getTransient();
+        if (!transientData.has('data')) {
+            throw new Error('The transient data must contain a "data" key');
+        }
+
+        // Transient data
+        const data = JSON.parse(transientData.get('data').toString('utf8'));
+        const privateCollectionName = `Org${ctx.clientIdentity.getMSPID()}MSPPrivateCollection`;
+        try {
+            await ctx.stub.putPrivateData(privateCollectionName, id, Buffer.from(JSON.stringify(data)));
+            console.log(`put private data with ID ${id} as answer to ${request_id}:\n${Buffer.from(JSON.stringify(data))}`)
+        } catch (err) {
+            console.error(`Failed to put private data:\n${err.toString()}`)
+        }
+
+        // Normal data
+        const response = {
+                        id: id,
+                        request_id: request_id,
+                        requester: requester,
+                        responder: responder,
+                        timestamp: timestamp
+                    }
+        try {
+            await ctx.stub.putState(id, Buffer.from(
+                stringify(
+                    sortKeysRecursive(response)
+                )
+            ));
+            console.log(`put data in response ${id} to request ${request_id}:\n${stringify(sortKeysRecursive(response))}`)
+        } catch(err) {
+            console.error(`failed to put data in response ${id} to request ${request_id}:\n${err.toString()}`)
+        }
+        return JSON.stringify(response);
+    }
     // CreateAsset issues a new asset to the world state with given details.
     async CreateAsset(ctx, id, color, size, owner, appraisedValue) {
         const exists = await this.AssetExists(ctx, id);
