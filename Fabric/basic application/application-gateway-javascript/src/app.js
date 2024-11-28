@@ -102,16 +102,26 @@ async function main() {
         // Get the smart contract from the network.
         const contract = network.getContract(chaincodeName);
 
+        // create listener functions
+        const response_listener = async(event) => {
+            if (event.eventName === 'response') {
+                console.log(`Event: Response:\n${event.payload.toString('utf8')}`)
+                // handle simulated business logic
+
+                //handle purging of private data which is no longer needed
+            }
+        }
+        const request_listener = async(event) => {
+            if (event.eventName === 'request') {
+                console.log(`Event: Request:\n${event.payload.toString('utf8')}`)
+                // handle sending a response
+            }
+        }
+
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
         await initLedger(contract);
-        // await getAllAssets(contract);
-        // await createAsset(contract);
-        // await transferAssetAsync(contract);
-        // await readAssetByID(contract);
-        // create shared private data between org1 and org2
-        await createSharedPrivateAsset(contract)
-        // read all the assets on the ledger
-        await getAllAssets(contract)
+        let resListener = await contract.addContractListener(response_listener);
+        let reqListener = await contract.addContractListener(request_listener);
     } finally {
         gateway.close();
         client.close();
