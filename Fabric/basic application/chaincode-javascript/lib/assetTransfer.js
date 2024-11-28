@@ -10,7 +10,19 @@
 const stringify  = require('json-stringify-deterministic');
 const sortKeysRecursive  = require('sort-keys-recursive');
 const { Contract } = require('fabric-contract-api');
+/*
+class Asset {
+    constructor(id, owner, value, description, timestamp) {
+        this.id = id;              // Unique identifier
+        this.owner = owner;        // Owner of the asset
+        this.value = value;        // Value of the asset
+        this.description = description; // Additional details
+        this.timestamp = timestamp || new Date().toISOString(); // Creation timestamp
+    }
+}
 
+module.exports = Asset;
+*/
 class AssetTransfer extends Contract {
 
     async InitLedger(ctx) {
