@@ -215,6 +215,7 @@ class Response {
 }
 // FIXME: new_id should be handled with chaincode-internal logic
 async function handleRequest(contract, id, new_id) {
+    // get the request
     const resultBytes = await contract.evaluateTransaction('GetNextRequest', id, peerHostAlias);
     const resultJson = utf8Decoder.decode(resultBytes);
     let result;
@@ -226,6 +227,7 @@ async function handleRequest(contract, id, new_id) {
         return id++;
     }
 
+    // handle the request
     if (result) { // if result is not empty
         createPrivateResponse(new Response(
             new_id, result.id, peerHostAlias,
@@ -240,6 +242,9 @@ async function handleRequest(contract, id, new_id) {
         console.log(`handleRequest: answered request ${result.id}.`)
         // if succesfully answered: increase the id for future searching of requests
         return result.id;
+    } else if (result.owner === peerHostAlias) {
+        console.log(`handleRequest: i am owner of request ${id}. Skipping.`)
+        return id++;
     } else {
         console.log(`handleRequest: no data available on id ${id}. Skipping.`)
         return id++;
