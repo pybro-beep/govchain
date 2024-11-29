@@ -122,6 +122,25 @@ async function main() {
         await initLedger(contract);
         let resListener = await contract.addContractListener(response_listener);
         let reqListener = await contract.addContractListener(request_listener);
+        /*
+        this.id = id;
+        this.responder = responder;
+        this.requester = requester;
+        this.timestamp = new Date().toISOString();
+        // Transient:
+        this.transientData = transientData;
+         */
+        await createPrivateRequest(new Request(
+            2, "peer0.org2.example.com", peerHostAlias,
+            // transient
+            stringify(
+                {
+                    name: "Max",
+                    nachname: "Mustermann",
+                    benötigt: "Wohnort 1"
+                }
+            )
+        ));
     } finally {
         gateway.close();
         client.close();
@@ -192,21 +211,19 @@ async function getAllAssets(contract) {
 }
 // NEW:
 class Request {
-    constructor(id, requester, responder, transientData) {
+    constructor(id, owner, transientData) {
         this.id = id;
-        this.responder = responder;
-        this.requester = requester;
+        this.owner = owner;
         this.timestamp = new Date().toISOString();
         // Transient:
         this.transientData = transientData;
     }
 }
 class Response {
-    constructor(id, request_id, requester, responder, transientData) {
+    constructor(id, request_id, owner, transientData) {
         this.id = id;
         this.request_id = request_id;
-        this.responder = responder;
-        this.requester = requester;
+        this.owner = owner;
         this.timestamp = new Date().toISOString();
         // Transient:
         this.transientData = transientData;
@@ -219,8 +236,7 @@ async function createPrivateRequest(contract, request) {
     const transaction = await contract.createTransaction(
         'CreatePrivateRequest',
         request.id,
-        request.requester,
-        request.responder,
+        request.owner,
         request.timestamp
     );
     const transient = {
@@ -249,8 +265,7 @@ async function createPrivateResponse(contract, response) {
         'CreatePrivateResponse',
         response.id,
         response.request_id,
-        response.requester,
-        response.responder,
+        response.owner,
         response.timestamp
     );
     const transient = {

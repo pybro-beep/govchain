@@ -10,31 +10,7 @@
 const stringify  = require('json-stringify-deterministic');
 const sortKeysRecursive  = require('sort-keys-recursive');
 const { Contract } = require('fabric-contract-api');
-/*
-class Request {
-    constructor(id, requester, responder, transientData) {
-        this.id = id;
-        this.responder = responder;
-        this.requester = requester;
-        this.timestamp = new Date().toISOString();
-        // Transient:
-        this.transientData = transientData;
-    }
-}
-class Response {
-    constructor(id, request_id, requester, responder, transientData) {
-        this.id = id;
-        this.request_id = request_id;
-        this.responder = responder;
-        this.requester = requester;
-        this.timestamp = new Date().toISOString();
-        // Transient:
-        this.transientData = transientData;
-    }
-}
 
-module.exports = Asset;
-*/
 class AssetTransfer extends Contract {
     async InitLedger(ctx) {
         const assets = [
@@ -58,7 +34,7 @@ class AssetTransfer extends Contract {
         }
     }
 
-    async CreatePrivateRequest(ctx, id, requester, responder, timestamp) {
+    async CreatePrivateRequest(ctx, id, owner, timestamp) {
         // FIXME: event not being set/thrown/used in app.js
         const transientData = ctx.stub.getTransient();
         if (!transientData.has('data')) {
@@ -77,24 +53,23 @@ class AssetTransfer extends Contract {
 
         // Normal data
         const request = {
-                        id: id,
-                        requester: requester,
-                        responder: responder,
-                        timestamp: timestamp
-                    }
+            id: id,
+            requester: owner,
+            timestamp: timestamp
+        }
         try {
-        await ctx.stub.putState(id, Buffer.from(
-            stringify(
-                sortKeysRecursive(request)
-            )
-        ));
-        console.log(`put data of request ${id}:\n${stringify(sortKeysRecursive(request))}`);
+            await ctx.stub.putState(id, Buffer.from(
+                stringify(
+                    sortKeysRecursive(request)
+                )
+            ));
+            console.log(`put data of request ${id}:\n${stringify(sortKeysRecursive(request))}`);
         } catch (err) {
-        console.error(`failed to put data of request ${id} with error:\n${err.toString()}`);
+            console.error(`failed to put data of request ${id} with error:\n${err.toString()}`);
         }
         return JSON.stringify(request);
     }
-    async CreatePrivateResponse(ctx, id, request_id, requester, responder, timestamp) {
+    async CreatePrivateResponse(ctx, id, request_id, owner, timestamp) {
         // FIXME: event not being set/thrown/used in app.js
         const transientData = ctx.stub.getTransient();
         if (!transientData.has('data')) {
@@ -115,8 +90,7 @@ class AssetTransfer extends Contract {
         const response = {
                         id: id,
                         request_id: request_id,
-                        requester: requester,
-                        responder: responder,
+                        owner: owner,
                         timestamp: timestamp
                     }
         try {
