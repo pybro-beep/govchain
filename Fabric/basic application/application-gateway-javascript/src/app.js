@@ -102,11 +102,13 @@ async function main() {
         // Get the smart contract from the network.
         const contract = network.getContract(chaincodeName);
 
-
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
         await initLedger(contract);
 
-
+        var id = 3;
+        // FIXME: this uses random ids -> collision will happen, but unlikely so fine for testing
+        const timeMiliSeconds = 1000; // jede Sekunde
+        let interval = setInterval(id = await handleRequest(contract, id, id+10+(Math.random()*999999)), timeMiliSeconds);
         // TODO: iterate through requests until newest ID is found. If ID > currentID && !hasResponse()
         // -> start responding from this asset onward
         let i = 3;
@@ -123,6 +125,7 @@ async function main() {
             )
         ));
 
+        clearInterval(interval);
     } finally {
         gateway.close();
         client.close();
