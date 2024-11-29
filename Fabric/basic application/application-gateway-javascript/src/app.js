@@ -102,45 +102,27 @@ async function main() {
         // Get the smart contract from the network.
         const contract = network.getContract(chaincodeName);
 
-        // create listener functions
-        const response_listener = async(event) => {
-            if (event.eventName === 'response') {
-                console.log(`Event: Response:\n${event.payload.toString('utf8')}`)
-                // handle simulated business logic
-
-                //handle purging of private data which is no longer needed
-            }
-        }
-        const request_listener = async(event) => {
-            if (event.eventName === 'request') {
-                console.log(`Event: Request:\n${event.payload.toString('utf8')}`)
-                // handle sending a response
-            }
-        }
 
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
         await initLedger(contract);
-        let resListener = await contract.addContractListener(response_listener);
-        let reqListener = await contract.addContractListener(request_listener);
-        /*
-        this.id = id;
-        this.responder = responder;
-        this.requester = requester;
-        this.timestamp = new Date().toISOString();
-        // Transient:
-        this.transientData = transientData;
-         */
+
+
+        // TODO: iterate through requests until newest ID is found. If ID > currentID && !hasResponse()
+        // -> start responding from this asset onward
+        let i = 3;
         await createPrivateRequest(new Request(
-            2, "peer0.org2.example.com", peerHostAlias,
+            i++, peerHostAlias,
             // transient
             stringify(
                 {
-                    name: "Max",
-                    nachname: "Mustermann",
-                    benötigt: "Wohnort 1"
+                    // in example, PID is used to uniquely identifiy a data entry in a register
+                    PID: '1234',
+                    // needed must exist
+                    needed: "Wohnort 1"
                 }
             )
         ));
+
     } finally {
         gateway.close();
         client.close();
@@ -210,6 +192,8 @@ async function getAllAssets(contract) {
     console.log('*** Result:', result);
 }
 // NEW:
+// FIXME: id is currently just being added, no guarantee for non-overlapping id
+// TODO: go through every id and update to a more functional way of assigning / using IDs
 class Request {
     constructor(id, owner, transientData) {
         this.id = id;
@@ -227,6 +211,38 @@ class Response {
         this.timestamp = new Date().toISOString();
         // Transient:
         this.transientData = transientData;
+    }
+}
+// FIXME: new_id should be handled with chaincode-internal logic
+async function handleRequest(contract, id, new_id) {
+    const resultBytes = await contract.evaluateTransaction('GetNextRequest', id, peerHostAlias);
+    const resultJson = utf8Decoder.decode(resultBytes);
+    let result;
+    try {
+        result = JSON.parse(resultJson);
+    } catch (err) {
+        console.error(`handleRequest: could not parse result:\n${resultJson}`);
+        // skip to next request
+        return id++;
+    }
+
+    if (result) { // if result is not empty
+        createPrivateResponse(new Response(
+            new_id, result.id, peerHostAlias,
+            {
+            /* NOTE: this prototype does not have a database / register connection.
+            *  We are simply appending ": Secret" to the query to verify the functionality as this logic
+            *  is very application-specific
+            */
+                answer: `${result.needed}: Secret`
+            }
+        ));
+        console.log(`handleRequest: answered request ${result.id}.`)
+        // if succesfully answered: increase the id for future searching of requests
+        return result.id;
+    } else {
+        console.log(`handleRequest: no data available on id ${id}. Skipping.`)
+        return id++;
     }
 }
 async function createPrivateRequest(contract, request) {

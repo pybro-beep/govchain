@@ -15,12 +15,12 @@ class AssetTransfer extends Contract {
     async InitLedger(ctx) {
         const assets = [
             {
-                ID: '0',
-                Owner: 'Null',
+                ID: 0,
+                Owner: 'N/A',
             },
             {
-                ID: '1',
-                Owner: '0',
+                ID: 1,
+                Owner: 'N/A',
             }
         ];
 
@@ -243,7 +243,29 @@ class AssetTransfer extends Contract {
         await ctx.stub.putState(id, Buffer.from(stringify(sortKeysRecursive(asset))));
         return oldOwner;
     }
-
+    // TODO: get all requests until current ID or no Answer
+    async GetNextRequest(ctx, id, peer) {
+        // FIXME: specify range parameters according to Documentation -> adjustable for better performance
+        const iterator = await ctx.stub.getStateByRange('', '');
+        let result = await iterator.next();
+        const answers = [];
+        while (!result.done) {
+            strValue = Buffer.from(result.value.value.toString()).toString('utf-8');
+            let record;
+            try {
+                record = JSON.parse(strValue);
+                if (record.request_id) {//record is a response
+                    answers.push(request_id);
+                } else if (!record.requester === peer && !answers.includes(record.id) && record.id > id) {
+                    return JSON.stringify(record)
+                }
+            } catch (err) {
+                console.error(`Failed to parse: ${strValue}`);
+                record = strValue;
+            }
+        }
+        return '';
+    }
     // GetAllAssets returns all assets found in the world state.
     async GetAllAssets(ctx) {
         const allResults = [];
