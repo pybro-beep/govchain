@@ -246,6 +246,7 @@ class AssetTransfer extends Contract {
     // TODO: get all requests until current ID or no Answer
     async GetNextRequest(ctx, id, peer) {
         // FIXME: specify range parameters according to Documentation -> adjustable for better performance
+        // TODO: if id is empty, get oldest
         const iterator = await ctx.stub.getStateByRange('', '');
         let result = await iterator.next();
         const answers = [];

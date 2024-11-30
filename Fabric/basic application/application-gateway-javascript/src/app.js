@@ -68,6 +68,7 @@ const peerHostAlias = envOrDefault('PEER_HOST_ALIAS', 'peer0.org1.example.com');
 
 const utf8Decoder = new TextDecoder();
 const assetId = `asset${String(Date.now())}`;
+const searchRequestId = 'asset0';
 
 async function main() {
     displayInputParameters();
@@ -108,12 +109,11 @@ async function main() {
         var id = 3;
         // FIXME: this uses random ids -> collision will happen, but unlikely so fine for testing
         const timeMiliSeconds = 1000; // jede Sekunde
-        let interval = setInterval(id = await handleRequest(contract, id, id+10+(Math.random()*999999)), timeMiliSeconds);
+        const interval = setInterval( searchRequestId = await handleRequest(contract, id), timeMiliSeconds);
         // TODO: iterate through requests until newest ID is found. If ID > currentID && !hasResponse()
         // -> start responding from this asset onward
-        let i = 3;
         await createPrivateRequest(new Request(
-            i++, peerHostAlias,
+            assetId, peerHostAlias,
             // transient
             stringify(
                 {
@@ -198,8 +198,8 @@ async function getAllAssets(contract) {
 // FIXME: id is currently just being added, no guarantee for non-overlapping id
 // TODO: go through every id and update to a more functional way of assigning / using IDs
 class Request {
-    constructor(id, owner, transientData) {
-        this.id = id;
+    constructor(owner, transientData) {
+        this.id = `asset${String(Date.now())}`;
         this.owner = owner;
         this.timestamp = new Date().toISOString();
         // Transient:
@@ -207,8 +207,8 @@ class Request {
     }
 }
 class Response {
-    constructor(id, request_id, owner, transientData) {
-        this.id = id;
+    constructor(request_id, owner, transientData) {
+        this.id = `asset${String(Date.now())}`;
         this.request_id = request_id;
         this.owner = owner;
         this.timestamp = new Date().toISOString();
@@ -217,9 +217,9 @@ class Response {
     }
 }
 // FIXME: new_id should be handled with chaincode-internal logic
-async function handleRequest(contract, id, new_id) {
+async function handleRequest(contract, id) {
     // get the request
-    const resultBytes = await contract.evaluateTransaction('GetNextRequest', id, peerHostAlias);
+    const resultBytes = await contract.evaluateTransaction('GetNextRequest', searchRequestId, peerHostAlias);
     const resultJson = utf8Decoder.decode(resultBytes);
     let result;
     try {
@@ -227,10 +227,12 @@ async function handleRequest(contract, id, new_id) {
     } catch (err) {
         console.error(`handleRequest: could not parse result:\n${resultJson}`);
         // skip to next request
+        // FIXME: `asset${Date(id.lstrip("asset")).add(1)}`
         return id++;
     }
 
     // handle the request
+    const new_id = `asset${String(Date.now())}`
     if (result) { // if result is not empty
         createPrivateResponse(new Response(
             new_id, result.id, peerHostAlias,
