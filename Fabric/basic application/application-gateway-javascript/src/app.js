@@ -110,10 +110,7 @@ async function main() {
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
         await initLedger(contract);
 
-        var id = 3;
-        // FIXME: this uses random ids -> collision will happen, but unlikely so fine for testing
-        const timeMiliSeconds = 1000; // jede Sekunde
-        const interval = setInterval( searchRequestId = await handleRequest(contract, id), timeMiliSeconds);
+        answerMultiple(contract, getExisting(contract)); // catch up to current state of chaincode
         // TODO: iterate through requests until newest ID is found. If ID > currentID && !hasResponse()
         // -> start responding from this asset onward
         await createPrivateRequest(new Request(
@@ -128,8 +125,6 @@ async function main() {
                 }
             )
         ));
-
-        clearInterval(interval);
     } finally {
         gateway.close();
         client.close();
@@ -222,44 +217,38 @@ class Response {
         this.id = hash(stringify(sortKeysRecursive(this))) //hash of data as ID
     }
 }
-// FIXME: new_id should be handled with chaincode-internal logic
-async function handleRequest(contract, id) {
-    // get the request
-    const resultBytes = await contract.evaluateTransaction('GetNextRequest', searchRequestId, peerHostAlias);
-    const resultJson = utf8Decoder.decode(resultBytes);
-    let result;
-    try {
-        result = JSON.parse(resultJson);
-    } catch (err) {
-        console.error(`handleRequest: could not parse result:\n${resultJson}`);
-        // skip to next request
-        // FIXME: `asset${Date(id.lstrip("asset")).add(1)}`
-        return id++;
-    }
+async function getExisting(contract) {
+    console.log(
+        '\n--> Evaluate Transaction: GetAllAssets, function returns all the current assets on the ledger'
+    );
 
-    // handle the request
-    const new_id = `asset${String(Date.now())}`
-    if (result) { // if result is not empty
-        createPrivateResponse(new Response(
-            new_id, result.id, peerHostAlias,
-            {
-            /* NOTE: this prototype does not have a database / register connection.
-            *  We are simply appending ": Secret" to the query to verify the functionality as this logic
-            *  is very application-specific
-            */
-                answer: `${result.needed}: Secret`
-            }
-        ));
-        console.log(`handleRequest: answered request ${result.id}.`)
-        // if succesfully answered: increase the id for future searching of requests
-        return result.id;
-    } else if (result.owner === peerHostAlias) {
-        console.log(`handleRequest: i am owner of request ${id}. Skipping.`)
-        return id++;
-    } else {
-        console.log(`handleRequest: no data available on id ${id}. Skipping.`)
-        return id++;
+    const resultBytes = await contract.evaluateTransaction('GetAllNotFrom', peerHostAlias);
+
+    const resultJson = utf8Decoder.decode(resultBytes);
+    const requests = JSON.parse(resultJson);
+    console.log('*** Existing Requests:', requests);
+    return requests;
+}
+async function answerMultiple(contract, requests) {
+    for (const request in requests) {
+        handleRequest(contract, request);
     }
+}
+async function handleRequest(contract, request) {
+    const response = new Response(
+        request.id, peerHostAlias,
+        {
+        /* NOTE: this prototype does not have a database / register connection.
+        *  We are simply appending ": Secret" to the query to verify the functionality as this logic
+        *  is very application-specific
+        */
+            answer: `${result.needed}: Secret`
+        }
+    )
+    createPrivateResponse(response);
+    console.log(`handleRequest: answered request ${result.id}.`)
+    // if succesfully answered: increase the id for future searching of requests
+    return result.id;
 }
 async function createPrivateRequest(contract, request) {
     console.log(
