@@ -56,85 +56,22 @@ class AssetTransfer extends Contract {
         }
     }
 
-    async CreatePrivateRequest(ctx, owner) {
-        // get private data
-        const transientData = ctx.stub.getTransient();
-        if (!transientData.has('needed')) {
-            throw new Error('The transient data must contain a "needed" key');
-        }
-        const needed = JSON.parse(transientData.get('needed').toString('utf8'));
-        const privateCollectionName = `Org${ctx.clientIdentity.getMSPID()}MSPPrivateCollection`;
-        // put the private data into the transaction
-        try {
-            let key = "needed";
-            let value = Buffer.from(JSON.stringify(needed));
-            await ctx.stub.putPrivateData(privateCollectionName, key, value);
-            console.log(`put private data with ID ${id}:\n${Buffer.from(JSON.stringify(data))}`)
-        } catch (err) {
-            console.error(`Failed to put private data:\n${err.toString()}`)
-        }
-        // put the normal data into the transaction
-        try {
-            let key = "owner";
-            let value = Buffer.from(JSON.stringify(owner));
-            await ctx.stub.putState(key, value);
-            console.log(`put data of request ${id}:\n${stringify(sortKeysRecursive(req))}`);
-        } catch (err) {
-            console.error(`failed to put data of request ${id} with error:\n${err.toString()}`);
-        }
-        ctx.stub.setEvent("request", Buffer.from(getTxID()));
-        return getTxID();
-    }
-    async CreatePrivateResponse(ctx, request_id, owner) {
-        // get private data
-        const transientData = ctx.stub.getTransient();
-        if (!transientData.has('answer')) {
-            throw new Error('The transient data must contain a "needed" key');
-        }
-        const answer = JSON.parse(transientData.get('answer').toString('utf8'));
-        const privateCollectionName = `Org${ctx.clientIdentity.getMSPID()}MSPPrivateCollection`;
-        // put the private data into the transaction
-        let key, value;
-        try {
-            key = "answer";
-            value = Buffer.from(JSON.stringify(answer));
-            await ctx.stub.putPrivateData(privateCollectionName, key, value);
-            console.log(`put private data into response:\n${Buffer.from(JSON.stringify(data))}`)
-        } catch (err) {
-            console.error(`Failed to put private data:\n${err.toString()}`)
-        }
-        // put the normal data into the transaction
-        try {
-            key = "owner";
-            value = Buffer.from(JSON.stringify(owner));
-            await ctx.stub.putState(key, value);
-            key = "request_id";
-            value = Buffer.from(JSON.stringify(request_id));
-            await ctx.stub.putState(key, value);
-            console.log(`put data of request ${id}:\n${stringify(sortKeysRecursive(req))}`);
-        } catch (err) {
-            console.error(`failed to put data of request ${id} with error:\n${err.toString()}`);
-        }
-        ctx.stub.setEvent("request", Buffer.from(getTxID()));
-        return getTxID();
-    }
     // CreateAsset issues a new asset to the world state with given details.
-    async CreateAsset(ctx, id, color, size, owner, appraisedValue) {
-        const exists = await this.AssetExists(ctx, id);
+    async CreateAsset(ctx, public, private) {
+        privateCollectionName = "sharedPrivateCollection";
+        const txid = ctx.stub.getTxID();
+        const exists = await this.AssetExists(ctx, txid);
         if (exists) {
             throw new Error(`The asset ${id} already exists`);
         }
-
-        const asset = {
-            ID: id,
-            Color: color,
-            Size: size,
-            Owner: owner,
-            AppraisedValue: appraisedValue,
-        };
-        // we insert data in alphabetic order using 'json-stringify-deterministic' and 'sort-keys-recursive'
-        await ctx.stub.putState(id, Buffer.from(stringify(sortKeysRecursive(asset))));
-        return JSON.stringify(asset);
+        await ctx.stub.putState(txid, Buffer.from(stringify(sortKeysRecursive(public))));
+        await ctx.stub.putPrivateData(privateCollectionName, txid, Buffer.from(stringify(sortKeysRecursive(private))));
+        if (public["type"] == "request") {
+            ctx.stub.setEvent("request");
+        } else if (public["type"] == "response") {
+            ctx.stub.setEvent("response");
+        }
+        return txid;
     }
     // create private asset by writing transient data
     async CreatePrivateAsset(ctx, id, color, size, owner, appraisedValue) {

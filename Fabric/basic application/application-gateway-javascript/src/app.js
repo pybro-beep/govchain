@@ -110,21 +110,44 @@ async function main() {
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
         await initLedger(contract);
 
-        answerMultiple(contract, getExisting(contract)); // catch up to current state of chaincode
-        // TODO: iterate through requests until newest ID is found. If ID > currentID && !hasResponse()
-        // -> start responding from this asset onward
-        await createPrivateRequest(contract, new Request(
-            peerHostAlias,
-            // transient
-            stringify(sortKeysRecursive(
-                {
-                    // in example, PID is used to uniquely identifiy a data entry in a register
-                    PID: '1234',
-                    // needed must exist
-                    needed: "Wohnort 1"
+        await contract.addContractListener(contract, 'request-listener', 'request', async (error, payload, blockNum, txid, status) => {
+            if (error) {
+                console.error(`received error in request-listener:${error.toString()}`)
+            } else {
+                console.log(`received request event:\ntxid: ${txid},\nstatus: ${status}`);
+                //TODO: reply
+                let public = {
+                    "response_to": txid,
+                    "timestamp": new Date().toISOString(),
+                    "type": "response",
+                    "ttl": 2
                 }
-            ))
-        ));
+                let private = {
+                    "details": `personenbezogene daten von ${getPrivate(txid)["details"].replace('frage personenbezogene daten von ', '').replace(' an.')}.`
+                }
+
+                createAsset(contract, public, private);
+            }
+        });
+        await contract.addContractListener(contract, 'response-listener', 'response', async (error, payload, blockNum, txid, status) => {
+            if (error) {
+                console.error(`received error in response-listener:${error.toString()}`)
+            } else {
+                console.log(`received response event:\ntxid: ${txid},\nstatus: ${status}`);
+                // TODO: set request status
+            }
+        });
+        let public = {
+            "requester": mspId,
+            "timestamp": new Date().toISOString(),
+            "type": "request",
+            "status": "pending",
+            "ttl": 2
+        };
+        let private = {
+            "details": `frage personenbezogene daten von ${Math.random()*100000000} an.`
+        };
+        await createAsset(contract, public, private);
     } finally {
         gateway.close();
         client.close();
@@ -194,27 +217,13 @@ async function getAllAssets(contract) {
     console.log('*** Result:', result);
 }
 // NEW:
-// FIXME: id is currently just being added, no guarantee for non-overlapping id
-// TODO: go through every id and update to a more functional way of assigning / using IDs
-class Request {
-    constructor(owner, transientData) {
-        this.owner = owner;
-        this.timestamp = new Date().toISOString();
-        // Transient:
-        this.transientData = transientData;
+async function createAsset(contract, public, private) { //returns txid!
+    try {
+       txid = await contract.submit('createAsset', public, private);
+        console.log(`SUCCESS (createAsset): created asset ${txid}`);
+    } catch (err) {
+        console.error(`ERROR (createAsset): ${err}`);
     }
-}
-class Response {
-    constructor(request, owner, transientData) {
-        this.request_id = getId(request);
-        this.owner = owner;
-        this.timestamp = new Date().toISOString();
-        // Transient:
-        this.transientData = transientData;
-    }
-}
-async function getId(asset) {
-    hash(stringify(sortKeysRecursive(this)))
 }
 async function getExisting(contract) {
     console.log(
@@ -227,100 +236,6 @@ async function getExisting(contract) {
     const requests = JSON.parse(resultJson);
     console.log('*** Existing Requests:', requests);
     return requests;
-}
-async function answerMultiple(contract, requests) {
-    for (const request in requests) {
-        handleRequest(contract, request);
-    }
-}
-async function handleRequest(contract, request) {
-    const response = new Response( //FIXME: does this actually have the transient data in request.needed?
-        request, peerHostAlias,
-        {
-        /* NOTE: this prototype does not have a database / register connection.
-        *  We are simply appending ": Secret" to the query to verify the functionality as this logic
-        *  is very application-specific
-        */
-            answer: `${request.needed}: Secret`
-        }
-    )
-    createPrivateResponse(response);
-    console.log(`handleRequest: answered request ${result.id}.`)
-    // if succesfully answered: increase the id for future searching of requests
-    return result.id;
-}
-async function createPrivateRequest(contract, request) {
-    console.log(
-        'Sumbit Transaction: CreatePrivateRequest'
-    );
-    const transaction = await contract.createTransaction(
-        'CreatePrivateRequest',
-        request.owner,
-    );
-    const transient = {
-        needed: Buffer.from(
-            JSON.stringify({
-                data: request.transientData,
-            })
-        ),
-    };
-    transaction.setTransient(transient);
-    try {
-        await transaction.submit();
-        console.log("transaction submitted successfully:");
-        console.log(transaction.toString());
-    } catch (err) {
-        console.error("transaction failed:");
-        console.error(err.toString());
-    }
-
-}
-async function createPrivateResponse(contract, response, txid) {
-    console.log(
-        'Sumbit Transaction: CreatePrivateResponse'
-    );
-    const transaction = await contract.createTransaction(
-        'CreatePrivateResponse',
-        txid,
-        response.owner,
-    );
-    const transient = {
-        answer: Buffer.from(
-            JSON.stringify({
-                data: response.transientData,
-            })
-        ),
-    };
-    transaction.setTransient(transient);
-    try {
-        await transaction.submit();
-        console.log("transaction submitted successfully:");
-        console.log(transaction.toString());
-    } catch (err) {
-        console.error("transaction failed:");
-        console.error(err.toString());
-    }
-
-}
-// OLD:
-/**
- * Submit a transaction synchronously, blocking until it has been committed to the ledger.
- */
-async function createAsset(contract) {
-    console.log(
-        '\n--> Submit Transaction: CreateAsset, creates new asset with ID, Color, Size, Owner and AppraisedValue arguments'
-    );
-
-    await contract.submitTransaction(
-        'CreateAsset',
-        assetId,
-        'yellow',
-        '5',
-        'Tom',
-        '1300'
-    );
-
-    console.log('*** Transaction committed successfully');
 }
 // same as createAsset, but adds asset to private collection instead
 async function createPrivateAsset(contract) {
