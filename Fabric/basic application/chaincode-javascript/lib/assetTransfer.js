@@ -11,6 +11,29 @@ const stringify  = require('json-stringify-deterministic');
 const sortKeysRecursive  = require('sort-keys-recursive');
 const { Contract } = require('fabric-contract-api');
 
+class Request {
+    constructor(owner, transientData) {
+        this.owner = owner;
+        this.timestamp = new Date().toISOString();
+        // Transient:
+        this.transientData = transientData;
+
+        this.id = hash(stringify(sortKeysRecursive(this))) //hash of data as ID
+    }
+}
+class Response {
+    constructor(request_id, owner, transientData) {
+        this.request_id = request_id;
+        this.owner = owner;
+        this.timestamp = new Date().toISOString();
+        // Transient:
+        this.transientData = transientData;
+        
+        this.id = hash(stringify(sortKeysRecursive(this))) //hash of data as ID
+    }
+}
+
+
 class AssetTransfer extends Contract {
     async InitLedger(ctx) {
         const assets = [
@@ -50,7 +73,9 @@ class AssetTransfer extends Contract {
         } catch (err) {
             console.error(`Failed to put private data:\n${err.toString()}`)
         }
-
+        const id = hash(new Request(
+            owner, data
+        ));
         // Normal data
         const request = {
             id: id,

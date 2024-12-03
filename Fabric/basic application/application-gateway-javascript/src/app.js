@@ -71,7 +71,7 @@ const peerEndpoint = envOrDefault('PEER_ENDPOINT', 'localhost:7051');
 const peerHostAlias = envOrDefault('PEER_HOST_ALIAS', 'peer0.org1.example.com');
 
 const utf8Decoder = new TextDecoder();
-const assetId = `asset${String(Date.now())}`;
+// const assetId = `asset${String(Date.now())}`;
 const searchRequestId = 'asset0';
 
 async function main() {
@@ -114,16 +114,16 @@ async function main() {
         // TODO: iterate through requests until newest ID is found. If ID > currentID && !hasResponse()
         // -> start responding from this asset onward
         await createPrivateRequest(new Request(
-            assetId, peerHostAlias,
+            peerHostAlias,
             // transient
-            stringify(
+            stringify(sortKeysRecursive(
                 {
                     // in example, PID is used to uniquely identifiy a data entry in a register
                     PID: '1234',
                     // needed must exist
                     needed: "Wohnort 1"
                 }
-            )
+            ))
         ));
     } finally {
         gateway.close();
@@ -202,20 +202,19 @@ class Request {
         this.timestamp = new Date().toISOString();
         // Transient:
         this.transientData = transientData;
-
-        this.id = hash(stringify(sortKeysRecursive(this))) //hash of data as ID
     }
 }
 class Response {
-    constructor(request_id, owner, transientData) {
-        this.request_id = request_id;
+    constructor(request, owner, transientData) {
+        this.request_id = getId(request);
         this.owner = owner;
         this.timestamp = new Date().toISOString();
         // Transient:
         this.transientData = transientData;
-        
-        this.id = hash(stringify(sortKeysRecursive(this))) //hash of data as ID
     }
+}
+async function getId(asset) {
+    hash(stringify(sortKeysRecursive(this)))
 }
 async function getExisting(contract) {
     console.log(
@@ -235,14 +234,14 @@ async function answerMultiple(contract, requests) {
     }
 }
 async function handleRequest(contract, request) {
-    const response = new Response(
-        request.id, peerHostAlias,
+    const response = new Response( //FIXME: does this actually have the transient data in request.needed?
+        request, peerHostAlias,
         {
         /* NOTE: this prototype does not have a database / register connection.
         *  We are simply appending ": Secret" to the query to verify the functionality as this logic
         *  is very application-specific
         */
-            answer: `${result.needed}: Secret`
+            answer: `${request.needed}: Secret`
         }
     )
     createPrivateResponse(response);
