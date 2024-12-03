@@ -15,6 +15,10 @@ const channelName = envOrDefault('CHANNEL_NAME', 'mychannel');
 const chaincodeName = envOrDefault('CHAINCODE_NAME', 'basic-private-cc');
 const mspId = envOrDefault('MSP_ID', 'Org1MSP');
 
+// deterministic JSON
+const stringify  = require('json-stringify-deterministic');
+const sortKeysRecursive  = require('sort-keys-recursive');
+
 // Path to crypto materials.
 const cryptoPath = envOrDefault(
     'CRYPTO_PATH',
@@ -199,21 +203,23 @@ async function getAllAssets(contract) {
 // TODO: go through every id and update to a more functional way of assigning / using IDs
 class Request {
     constructor(owner, transientData) {
-        this.id = `asset${String(Date.now())}`;
         this.owner = owner;
         this.timestamp = new Date().toISOString();
         // Transient:
         this.transientData = transientData;
+
+        this.id = hash(stringify(sortKeysRecursive(this))) //hash of data as ID
     }
 }
 class Response {
     constructor(request_id, owner, transientData) {
-        this.id = `asset${String(Date.now())}`;
         this.request_id = request_id;
         this.owner = owner;
         this.timestamp = new Date().toISOString();
         // Transient:
         this.transientData = transientData;
+        
+        this.id = hash(stringify(sortKeysRecursive(this))) //hash of data as ID
     }
 }
 // FIXME: new_id should be handled with chaincode-internal logic
