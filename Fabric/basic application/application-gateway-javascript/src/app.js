@@ -113,7 +113,7 @@ async function main() {
         answerMultiple(contract, getExisting(contract)); // catch up to current state of chaincode
         // TODO: iterate through requests until newest ID is found. If ID > currentID && !hasResponse()
         // -> start responding from this asset onward
-        await createPrivateRequest(new Request(
+        await createPrivateRequest(contract, new Request(
             peerHostAlias,
             // transient
             stringify(sortKeysRecursive(
@@ -255,12 +255,10 @@ async function createPrivateRequest(contract, request) {
     );
     const transaction = await contract.createTransaction(
         'CreatePrivateRequest',
-        request.id,
         request.owner,
-        request.timestamp
     );
     const transient = {
-        asset: Buffer.from(
+        needed: Buffer.from(
             JSON.stringify({
                 data: request.transientData,
             })
@@ -277,19 +275,17 @@ async function createPrivateRequest(contract, request) {
     }
 
 }
-async function createPrivateResponse(contract, response) {
+async function createPrivateResponse(contract, response, txid) {
     console.log(
         'Sumbit Transaction: CreatePrivateResponse'
     );
     const transaction = await contract.createTransaction(
         'CreatePrivateResponse',
-        response.id,
-        response.request_id,
+        txid,
         response.owner,
-        response.timestamp
     );
     const transient = {
-        asset: Buffer.from(
+        answer: Buffer.from(
             JSON.stringify({
                 data: response.transientData,
             })
