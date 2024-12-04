@@ -106,36 +106,6 @@ async function main() {
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
         // await initLedger(contract);
 
-        /*
-        const requestListener = await contract.addEventListener('request-listener', async (error, payload, blockNum, txid, status) => {
-            if (error) {
-                console.error(`received error in request-listener:${error.toString()}`)
-            } else {
-                console.log(`received request event:\ntxid: ${txid},\nstatus: ${status}`);
-                //TODO: check if request is owned by own mspid
-                let public = {
-                    "response_to": txid,
-                    "timestamp": new Date().toISOString(),
-                    "type": "response",
-                    "ttl": 2
-                }
-                let private = {
-                    "details": `personenbezogene daten von ${getPrivate(contract, txid)["details"].replace('frage personenbezogene daten von ', '').replace(' an.')}.`
-                }
-
-                createAsset(contract, public, private);
-            }
-        });
-        const responseListener = await contract.addContractListener(contract, 'response-listener', 'response', async (error, payload, blockNum, txid, status) => {
-            if (error) {
-                console.error(`received error in response-listener:${error.toString()}`)
-            } else {
-                console.log(`received response event:\ntxid: ${txid},\nstatus: ${status}`);
-                const requestTxid = getPublic(contract, txid)["response_to"];
-                setStatus(contract, requestTxid, txid);
-            }
-        });
-        */
         const pub = {
             "requester": mspId,
             "timestamp": new Date().toISOString(),
@@ -147,26 +117,32 @@ async function main() {
             "details": `frage personenbezogene daten von ${Math.random()*100000000} an.`
         };
         await createAsset(contract, pub, priv);
-        // TODO: this is for testing of getChaincodeEvents
-        /*
-        {
+        // while (true) {
             const events = await network.getChaincodeEvents(chaincodeName, {
                 startBlock: BigInt(0), // Ignored if the checkpointer has checkpoint state
             });
             try {
                 for await (const event of events) {
-                    // Process then checkpoint event
-                    await checkpointer.checkpointChaincodeEvent(event)
-                    console.log(`saw event from transaction: ${checkpointer.getTransactionId()}`)
+                    const payloadBytes = utf8Decoder.decode(await event.payload)
+                    const payload = JSON.parse(JSON.parse(payloadBytes)); // WARN: i could not find out why this needs to be parsed twice, but it does
+                    if (payload.type == "request") {
+                        console.log(`STATUS (EventHandler): found new request ${event.transactionId}`)
+                        await handleRequest(contract, payload, event.transactionId);
+                    } else if (payload.type == "response") {
+                        console.log(`STATUS (EventHandler): found new response ${event.transactionId}`)
+                        await handleResponse(contract, payload);
+                    } else {
+                        console.log(`STATUS (EventHandler): event has payload ${payload}`);
+                    }
                 }
             } catch (err) {
                 // Connection error
+                console.log("ERROR (EventHandler):")
                 console.error(err)
             } finally {
                 events.close();
             }
-        }
-            */
+        // }
     } finally {
         gateway.close();
         client.close();
@@ -207,31 +183,52 @@ async function newSigner() {
     const privateKey = crypto.createPrivateKey(privateKeyPem);
     return signers.newPrivateKeySigner(privateKey);
 }
-/**
- * This type of transaction would typically only be run once by an application the first time it was started after its
- * initial deployment. A new version of the chaincode deployed later would likely not need to run an "init" function.
- */
+async function handleRequest(contract, payload, txid) {
+    if (payload.requester == mspId) {
+        console.log(`SUCCESS (handleRequest): skipping request made by own org ${mspId}`);
+        return null;
+    } else if (payload.status != "pending") {
+        console.log(`SUCCESS (handleRequest): skipping already answered request ${txid}`);
+        return null;
+    }
+    const pub = {
+        "type": "response",
+        "timestamp": new Date().toISOString(),
+        "response_to": txid,
+    };
+    const priv = { // replacement for internal logic of Org
+        "details": "personenbezogene Daten"
+    };
+    console.log(`STATUS (handleRequest): responding to ${txid} with ${pub}`);
+    const result_txid = await createAsset(contract, pub, priv)
+    console.log(`SUCCESS (handleRequest): created response ${result_txid}`);
+    const update = await setStatus(contract, txid, result_txid);
+    console.log(`SUCCESS (handleRequest): updated status ${update}`);
+}
 async function initLedger(contract) {
     await contract.submitTransaction('InitLedger');
     console.log('SUCCESS (initLedger): initialized Ledger');
 }
 async function setStatus(contract, requestTxid, resultTxid) {
-    const result = contract.evaluateTransaction('setStatus', requestTxid, resultTxid);
+    const result = await contract.submitTransaction('setStatus', JSON.stringify(requestTxid), JSON.stringify(resultTxid));
     console.log(`SUCCESS (setStatus): set status of ${requestTxid}: ${JSON.parse(utf8Decoder.decode(result))}`)
+    result
 }
 async function getPublic(contract, txid) {
+    console.log(`STATUS (getPublic): getting public for ${txid}`);
     const result = JSON.parse(
-        utf8Decoder.decode(
-            contract.evaluateTransaction('GetPublic', txid)
+        utf8Decoder.encode(
+            await contract.submitTransaction('GetPublic', JSON.stringify(txid))
         )
     );
     console.log(`SUCCESS (getPublic): ${result}`);
     return result
 }
 async function getPrivate(contract, txid) {
+    console.log(`STATUS (getPrivate): getting transient for ${JSON.stringify(txid)}`);
     const result = JSON.parse(
         utf8Decoder.decode(
-            contract.evaluateTransaction('GetPrivate', txid)
+            await contract.evaluateTransaction('GetPrivate', JSON.stringify(txid))
         )
     );
     console.log(`SUCCESS (getPrivate): ${result}`);
@@ -252,7 +249,7 @@ async function getAllAssets(contract) {
 async function createAsset(contract, pub, priv) { //returns txid!
     try {
         const txid = await contract.submitTransaction('CreateAsset', JSON.stringify(pub), JSON.stringify(priv));
-        console.log(`SUCCESS (createAsset): created asset ${txid}`);
+        console.log(`SUCCESS (createAsset): created asset ${utf8Decoder.decode(txid)}`);
         return txid;
     } catch (err) {
         console.error(`ERROR (createAsset):`);

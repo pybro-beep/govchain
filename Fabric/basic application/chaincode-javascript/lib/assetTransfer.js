@@ -55,7 +55,7 @@ class AssetTransfer extends Contract {
         return responseTxid;
     }
     async GetPublic(ctx, txid) {
-        const publicDataBytes = ctx.stub.getState(txid);
+        const publicDataBytes = await ctx.stub.getState(txid);
         if (!publicDataBytes || publicDataBytes.length === 0) {
             throw new Error(`Request with transaction ID ${txid}: public data does not exist`);
         }
@@ -67,7 +67,6 @@ class AssetTransfer extends Contract {
         if (!privateDataBytes || privateDataBytes.length === 0) {
             throw new Error(`Request with transaction ID ${txid} does not exist in collection ${privateCollectionName}`);
         }
-
         return JSON.parse(privateDataBytes.toString());
     }
     // CreateAsset issues a new asset to the world state with given details.
@@ -81,11 +80,15 @@ class AssetTransfer extends Contract {
         // if done with dynamic collectionName -> could throw error if access is not allowed
         await ctx.stub.putState(txid, Buffer.from(stringify(sortKeysRecursive(pub))));
         await ctx.stub.putPrivateData(privateCollectionName, txid, Buffer.from(stringify(sortKeysRecursive(priv))));
-        if (pub["type"] == "request") {
-            await ctx.stub.setEvent("request");
-        } else if (pub["type"] == "response") {
-            await ctx.stub.setEvent("response");
-        }
+        // if (pub["type"]) {
+        //     if (pub["type"] == "request") {
+        //         await ctx.stub.setEvent("newRequest");
+        //     } else {
+        //         await ctx.stub.setEvent("newResponse");
+        //     }
+        // } else {
+        await ctx.stub.setEvent("CreateAsset", Buffer.from(JSON.stringify(pub)));
+        // }
         return txid;
     }
     // create private asset by writing transient data
