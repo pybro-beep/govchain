@@ -195,6 +195,7 @@ async function handleRequest(contract, payload, txid) {
         "type": "response",
         "timestamp": new Date().toISOString(),
         "response_to": txid,
+        "ttl": 2
     };
     const priv = { // replacement for internal logic of Org
         "details": "personenbezogene Daten"
