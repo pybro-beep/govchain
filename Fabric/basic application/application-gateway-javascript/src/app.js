@@ -108,7 +108,7 @@ async function main() {
         const contract = network.getContract(chaincodeName);
 
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
-        await initLedger(contract);
+        // await initLedger(contract);
 
         await contract.addContractListener(contract, 'request-listener', 'request', async (error, payload, blockNum, txid, status) => {
             if (error) {
@@ -123,7 +123,7 @@ async function main() {
                     "ttl": 2
                 }
                 let private = {
-                    "details": `personenbezogene daten von ${getPrivate(txid)["details"].replace('frage personenbezogene daten von ', '').replace(' an.')}.`
+                    "details": `personenbezogene daten von ${getPrivate(contract, txid)["details"].replace('frage personenbezogene daten von ', '').replace(' an.')}.`
                 }
 
                 createAsset(contract, public, private);
@@ -134,7 +134,8 @@ async function main() {
                 console.error(`received error in response-listener:${error.toString()}`)
             } else {
                 console.log(`received response event:\ntxid: ${txid},\nstatus: ${status}`);
-                // TODO: set request status
+                const requestTxid = getPublic(contract, txid)["response_to"];
+                setStatus(contract, requestTxid, txid);
             }
         });
         let public = {
@@ -193,18 +194,31 @@ async function newSigner() {
  * initial deployment. A new version of the chaincode deployed later would likely not need to run an "init" function.
  */
 async function initLedger(contract) {
-    console.log(
-        '\n--> Submit Transaction: InitLedger, function creates the initial set of assets on the ledger'
-    );
-
     await contract.submitTransaction('InitLedger');
-
-    console.log('*** Transaction committed successfully');
+    console.log('SUCCESS (initLedger): initialized Ledger');
 }
-
-/**
- * Evaluate a transaction to query ledger state.
- */
+async function setStatus(contract, requestTxid, resultTxid) {
+    const result = contract.evaluateTransaction('setStatus', requestTxid, resultTxid);
+    console.log(`SUCCESS (setStatus): set status of ${requestTxid}: ${JSON.parse(utf8Decoder.decode(result))}`)
+}
+async function getPublic(contract, txid) {
+    const result = JSON.parse(
+        utf8Decoder.decode(
+            contract.evaluateTransaction('GetPublic', txid)
+        )
+    );
+    console.log(`SUCCESS (getPublic): ${result}`);
+    return result
+}
+async function getPrivate(contract, txid) {
+    const result = JSON.parse(
+        utf8Decoder.decode(
+            contract.evaluateTransaction('GetPrivate', txid)
+        )
+    );
+    console.log(`SUCCESS (getPrivate): ${result}`);
+    return result
+}
 async function getAllAssets(contract) {
     console.log(
         '\n--> Evaluate Transaction: GetAllAssets, function returns all the current assets on the ledger'

@@ -11,27 +11,6 @@ const stringify  = require('json-stringify-deterministic');
 const sortKeysRecursive  = require('sort-keys-recursive');
 const { Contract } = require('fabric-contract-api');
 
-async function getId(asset) {
-    hash(stringify(sortKeysRecursive(this)))
-}
-class Request {
-    constructor(owner, transientData) {
-        this.owner = owner;
-        this.timestamp = new Date().toISOString();
-        // Transient:
-        this.transientData = transientData;
-    }
-}
-class Response {
-    constructor(request, owner, transientData) {
-        this.request_id = getId(request);
-        this.owner = owner;
-        this.timestamp = new Date().toISOString();
-        // Transient:
-        this.transientData = transientData;
-    }
-}
-
 
 class AssetTransfer extends Contract {
     async InitLedger(ctx) {
@@ -55,21 +34,53 @@ class AssetTransfer extends Contract {
             await ctx.stub.putState(asset.ID, Buffer.from(stringify(sortKeysRecursive(asset))));
         }
     }
+    async SetStatus(ctx, requestTxid, responseTxid) {
+        privateCollectionName = "sharedPrivateCollection";
+        const dataBytes = await ctx.stub.getState(requestTxid);
+        if (!dataBytes || dataBytes.length === 0) {
+            throw new Error(`state of ${requestTxid}: data does not exist`);
+        }
+        const data = JSON.parse(dataBytes.toString());
+        // check if response exists
+        const responseBytes = await ctx.stub.getState(responseTxid);
+        if (!responseBytes || responseBytes.length === 0) {
+            throw new Error(`response ${responseTxid} to ${requestTxid} does not exist`);
+        }
+        data.status = responseTxid;
+        await ctx.stub.putState(requestTxid, Buffer.from(JSON.stringify(data)));
+        return responseTxid;
+    }
+    async GetPublic(ctx, txid) {
+        const publicDataBytes = ctx.stub.getState(txid);
+        if (!privateDataBytes || privateDataBytes.length === 0) {
+            throw new Error(`Request with transaction ID ${txid}: public data does not exist`);
+        }
+        return JSON.parse(publicDataBytes);
+    }
+    async GetPrivate(ctx, txid) {
+        privateCollectionName = "sharedPrivateCollection";
+        const privateDataBytes = await ctx.stub.getPrivateData(privateCollectionName, txid);
+        if (!privateDataBytes || privateDataBytes.length === 0) {
+            throw new Error(`Request with transaction ID ${txid} does not exist in collection ${privateCollectionName}`);
+        }
 
+        return JSON.parse(privateDataBytes.toString());
+    }
     // CreateAsset issues a new asset to the world state with given details.
     async CreateAsset(ctx, public, private) {
         privateCollectionName = "sharedPrivateCollection";
-        const txid = ctx.stub.getTxID();
+        const txid = await ctx.stub.getTxID();
         const exists = await this.AssetExists(ctx, txid);
         if (exists) {
-            throw new Error(`The asset ${id} already exists`);
+            throw new Error(`The asset ${txid} already exists`);
         }
+        // if done with dynamic collectionName -> could throw error if access is not allowed
         await ctx.stub.putState(txid, Buffer.from(stringify(sortKeysRecursive(public))));
         await ctx.stub.putPrivateData(privateCollectionName, txid, Buffer.from(stringify(sortKeysRecursive(private))));
         if (public["type"] == "request") {
-            ctx.stub.setEvent("request");
+            await ctx.stub.setEvent("request");
         } else if (public["type"] == "response") {
-            ctx.stub.setEvent("response");
+            await ctx.stub.setEvent("response");
         }
         return txid;
     }
