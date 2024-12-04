@@ -6,6 +6,7 @@
     "maxPeerCount": 2,
     "blockToLive": 100,
     "memberOnlyRead": true,
+    "memberOnlyWrite": true,
     "endorsementPolicy": {
       "signaturePolicy": "OR('Org1MSP.member', 'Org2MSP.member')"
     }

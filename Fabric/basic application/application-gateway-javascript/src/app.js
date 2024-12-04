@@ -15,10 +15,6 @@ const channelName = envOrDefault('CHANNEL_NAME', 'mychannel');
 const chaincodeName = envOrDefault('CHAINCODE_NAME', 'basic-private-cc');
 const mspId = envOrDefault('MSP_ID', 'Org1MSP');
 
-// deterministic JSON
-const stringify  = require('json-stringify-deterministic');
-const sortKeysRecursive  = require('sort-keys-recursive');
-
 // Path to crypto materials.
 const cryptoPath = envOrDefault(
     'CRYPTO_PATH',
@@ -110,12 +106,13 @@ async function main() {
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
         // await initLedger(contract);
 
-        await contract.addContractListener(contract, 'request-listener', 'request', async (error, payload, blockNum, txid, status) => {
+        /*
+        const requestListener = await contract.addEventListener('request-listener', async (error, payload, blockNum, txid, status) => {
             if (error) {
                 console.error(`received error in request-listener:${error.toString()}`)
             } else {
                 console.log(`received request event:\ntxid: ${txid},\nstatus: ${status}`);
-                //TODO: reply
+                //TODO: check if request is owned by own mspid
                 let public = {
                     "response_to": txid,
                     "timestamp": new Date().toISOString(),
@@ -129,7 +126,7 @@ async function main() {
                 createAsset(contract, public, private);
             }
         });
-        await contract.addContractListener(contract, 'response-listener', 'response', async (error, payload, blockNum, txid, status) => {
+        const responseListener = await contract.addContractListener(contract, 'response-listener', 'response', async (error, payload, blockNum, txid, status) => {
             if (error) {
                 console.error(`received error in response-listener:${error.toString()}`)
             } else {
@@ -138,17 +135,38 @@ async function main() {
                 setStatus(contract, requestTxid, txid);
             }
         });
-        let public = {
+        */
+        const pub = {
             "requester": mspId,
             "timestamp": new Date().toISOString(),
             "type": "request",
             "status": "pending",
             "ttl": 2
         };
-        let private = {
+        const priv = {
             "details": `frage personenbezogene daten von ${Math.random()*100000000} an.`
         };
-        await createAsset(contract, public, private);
+        await createAsset(contract, pub, priv);
+        // TODO: this is for testing of getChaincodeEvents
+        /*
+        {
+            const events = await network.getChaincodeEvents(chaincodeName, {
+                startBlock: BigInt(0), // Ignored if the checkpointer has checkpoint state
+            });
+            try {
+                for await (const event of events) {
+                    // Process then checkpoint event
+                    await checkpointer.checkpointChaincodeEvent(event)
+                    console.log(`saw event from transaction: ${checkpointer.getTransactionId()}`)
+                }
+            } catch (err) {
+                // Connection error
+                console.error(err)
+            } finally {
+                events.close();
+            }
+        }
+            */
     } finally {
         gateway.close();
         client.close();
@@ -231,12 +249,14 @@ async function getAllAssets(contract) {
     console.log('*** Result:', result);
 }
 // NEW:
-async function createAsset(contract, public, private) { //returns txid!
+async function createAsset(contract, pub, priv) { //returns txid!
     try {
-       txid = await contract.submit('createAsset', public, private);
+        const txid = await contract.submitTransaction('CreateAsset', JSON.stringify(pub), JSON.stringify(priv));
         console.log(`SUCCESS (createAsset): created asset ${txid}`);
+        return txid;
     } catch (err) {
-        console.error(`ERROR (createAsset): ${err}`);
+        console.error(`ERROR (createAsset):`);
+        console.error(err)
     }
 }
 async function getExisting(contract) {

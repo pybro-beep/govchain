@@ -31,11 +31,15 @@ class AssetTransfer extends Contract {
             // use convetion of alphabetic order
             // we insert data in alphabetic order using 'json-stringify-deterministic' and 'sort-keys-recursive'
             // when retrieving data, in any lang, the order of data will be the same and consequently also the corresonding hash
-            await ctx.stub.putState(asset.ID, Buffer.from(stringify(sortKeysRecursive(asset))));
+            try {
+                await ctx.stub.putState(asset.ID, Buffer.from(stringify(sortKeysRecursive(asset))));
+            } catch (err) {
+                console.log("Chaincode Error (InitLedger");
+                console.error(err);
+            }
         }
     }
     async SetStatus(ctx, requestTxid, responseTxid) {
-        privateCollectionName = "sharedPrivateCollection";
         const dataBytes = await ctx.stub.getState(requestTxid);
         if (!dataBytes || dataBytes.length === 0) {
             throw new Error(`state of ${requestTxid}: data does not exist`);
@@ -52,13 +56,13 @@ class AssetTransfer extends Contract {
     }
     async GetPublic(ctx, txid) {
         const publicDataBytes = ctx.stub.getState(txid);
-        if (!privateDataBytes || privateDataBytes.length === 0) {
+        if (!publicDataBytes || publicDataBytes.length === 0) {
             throw new Error(`Request with transaction ID ${txid}: public data does not exist`);
         }
         return JSON.parse(publicDataBytes);
     }
     async GetPrivate(ctx, txid) {
-        privateCollectionName = "sharedPrivateCollection";
+        const privateCollectionName = "SharedPrivateCollection";
         const privateDataBytes = await ctx.stub.getPrivateData(privateCollectionName, txid);
         if (!privateDataBytes || privateDataBytes.length === 0) {
             throw new Error(`Request with transaction ID ${txid} does not exist in collection ${privateCollectionName}`);
@@ -67,19 +71,19 @@ class AssetTransfer extends Contract {
         return JSON.parse(privateDataBytes.toString());
     }
     // CreateAsset issues a new asset to the world state with given details.
-    async CreateAsset(ctx, public, private) {
-        privateCollectionName = "sharedPrivateCollection";
+    async CreateAsset(ctx, pub, priv) {
+        const privateCollectionName = "SharedPrivateCollection";
         const txid = await ctx.stub.getTxID();
         const exists = await this.AssetExists(ctx, txid);
         if (exists) {
             throw new Error(`The asset ${txid} already exists`);
         }
         // if done with dynamic collectionName -> could throw error if access is not allowed
-        await ctx.stub.putState(txid, Buffer.from(stringify(sortKeysRecursive(public))));
-        await ctx.stub.putPrivateData(privateCollectionName, txid, Buffer.from(stringify(sortKeysRecursive(private))));
-        if (public["type"] == "request") {
+        await ctx.stub.putState(txid, Buffer.from(stringify(sortKeysRecursive(pub))));
+        await ctx.stub.putPrivateData(privateCollectionName, txid, Buffer.from(stringify(sortKeysRecursive(priv))));
+        if (pub["type"] == "request") {
             await ctx.stub.setEvent("request");
-        } else if (public["type"] == "response") {
+        } else if (pub["type"] == "response") {
             await ctx.stub.setEvent("response");
         }
         return txid;
