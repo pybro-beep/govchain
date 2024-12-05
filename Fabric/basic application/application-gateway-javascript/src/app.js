@@ -119,30 +119,17 @@ async function main() {
             };
             await createAsset(contract, pub, priv);
         }
-        const events = await network.getChaincodeEvents(chaincodeName, {
-            startBlock: BigInt(0), // Ignored if the checkpointer has checkpoint state
-        });
-
-        try {
-            for await (const event of events) {
-                const payloadBytes = utf8Decoder.decode(await event.payload)
-                const payload = JSON.parse(payloadBytes.toString()); // WARN: i could not find out why this needs to be parsed twice, but it does
-                if (payload.type == "request") {
-                    console.log(`STATUS (EventHandler): found new request ${event.transactionId} with payload ${JSON.stringify(payload)}`)
-                    await handleRequest(contract, payload, payload.txid);
-                } else if (payload.type == "response") {
-                    console.log(`STATUS (EventHandler): found new response ${event.transactionId} with payload ${JSON.stringify(payload)}`)
-                    await handleResponse(contract, payload.txid);
-                } else {
-                    console.log(`STATUS (EventHandler): event has payload ${JSON.stringify(payload)}`);
-                }
+        const assetList = await getAllAssets(contract);
+        console.log(assetList);
+        for (i = 0; i < assetList.length; i++) {
+            console.log(assetList[i].key, ":");
+            metadata = JSON.parse(assetList[i].value);
+            if (metadata.type = 'request' && metadata.requester != mspId) {
+                const public_data = await getPublic(contract, assetList[i].key);
+                const private_data = await getPrivate(contract, assetList[i].key);
+                // create response
+                // change asset
             }
-        } catch (err) {
-            // Connection error
-            console.error(`ERROR (EventHandler):`)
-            console.error(err)
-        } finally {
-            events.close();
         }
     } finally {
         gateway.close();
@@ -245,34 +232,36 @@ async function setStatus(contract, requestTxid, resultTxid) {
 }
 async function getPublic(contract, txid) {
     console.log(`STATUS (getPublic): getting public for ${txid}`);
-    const result = JSON.parse(
-        utf8Decoder.encode(
-            await contract.submitTransaction('GetPublic', JSON.stringify(txid))
-        )
-    );
+    let result
+    try {
+        result = JSON.parse(
+            utf8Decoder.decode(
+                await contract.submitTransaction('GetPublic', txid)
+            )
+        );
+    } catch (err) {
+        console.log(err);
+        result = '';
+    }
     console.log(`\tSUCCESS (getPublic): ${result}`);
     return result
 }
 async function getPrivate(contract, txid) {
-    console.log(`STATUS (getPrivate): getting transient for ${JSON.stringify(txid)}`);
+    console.log(`STATUS (getPrivate): getting transient for ${txid}`);
     const result = JSON.parse(
         utf8Decoder.decode(
-            await contract.evaluateTransaction('GetPrivate', JSON.stringify(txid))
+            await contract.evaluateTransaction('GetPrivate', txid)
         )
     );
     console.log(`\tSUCCESS (getPrivate): ${result}`);
     return result
 }
 async function getAllAssets(contract) {
-    console.log(
-        '\n--> Evaluate Transaction: GetAllAssets, function returns all the current assets on the ledger'
-    );
-
     const resultBytes = await contract.submitTransaction('GetAllAssets');
 
     const resultJson = utf8Decoder.decode(resultBytes);
     const result = JSON.parse(resultJson);
-    console.log('*** Result:', result);
+    return result;
 }
 // NEW:
 async function createAsset(contract, pub, priv) { //returns txid!

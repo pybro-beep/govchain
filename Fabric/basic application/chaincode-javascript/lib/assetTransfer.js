@@ -71,17 +71,20 @@ class AssetTransfer extends Contract {
         return responseTxid.toString();
     }
     async GetPublic(ctx, txid) {
+        console.log(`txid used in GetPublic: ${txid}`)
         const publicDataBytes = await ctx.stub.getState(txid);
-        if (!publicDataBytes || publicDataBytes.length === 0) {
-            throw new Error(`Request with transaction ID ${txid}: public data does not exist: ${publicDataBytes.toString()}`);
-        }
+        // if (!publicDataBytes || publicDataBytes.length === 0) {
+        //     throw new Error(`Request with transaction ID ${txid} of type ${typeof(txid)}: public data does not exist: ${publicDataBytes.toString()}`);
+        // }
         return publicDataBytes.toString();
     }
     async GetPrivate(ctx, txid) {
+        console.log(`txid used in GetPrivate: ${txid}`)
+        const publicDataBytes = await ctx.stub.getState(txid);
         const privateCollectionName = "SharedPrivateCollection";
         const privateDataBytes = await ctx.stub.getPrivateData(privateCollectionName, txid);
         if (!privateDataBytes || privateDataBytes.length === 0) {
-            throw new Error(`Private data of request ${txid} does not exist in collection ${privateCollectionName}`);
+            throw new Error(`Private data of request ${txid} of type ${typeof(txid)} does not exist in collection ${privateCollectionName}`);
         }
         return privateDataBytes.toString();
     }
@@ -95,14 +98,16 @@ class AssetTransfer extends Contract {
         }
         // if done with dynamic collectionName -> could throw error if access is not allowed
         await ctx.stub.putState(txid, Buffer.from(stringify(sortKeysRecursive(pub))));
+        console.log(`txid used in putState: ${txid}`)
         await ctx.stub.putPrivateData(privateCollectionName, txid, Buffer.from(stringify(sortKeysRecursive(priv))));
-        // if (pub["type"]) {
-        //     if (pub["type"] == "request") {
-        //         await ctx.stub.setEvent("newRequest");
-        //     } else {
-        //         await ctx.stub.setEvent("newResponse");
-        //     }
-        // } else {
+        console.log(`txid used in putPrivateData: ${txid}`)
+        
+        try {
+            const publicData = await this.GetPublic(ctx, txid);
+            console.log(`Retrieved public data for txid ${txid}: ${publicData}`);
+        } catch (err) {
+            console.error(`Error retrieving public data for txid ${txid}:`, err);
+        }
         const pub_object = JSON.parse(pub);
         pub_object.txid = txid;
         await ctx.stub.setEvent("CreateAsset", Buffer.from(stringify(sortKeysRecursive(pub_object))));
@@ -261,12 +266,13 @@ class AssetTransfer extends Contract {
         let result = await iterator.next();
         while (!result.done) {
             const strValue = Buffer.from(result.value.value.toString()).toString('utf8');
+            const keyValue = Buffer.from(result.value.key.toString()).toString('utf8');
             let record;
             try {
-                record = JSON.parse(strValue);
+                record = {key: keyValue, value: JSON.parse(strValue)}
             } catch (err) {
                 console.log(err);
-                record = strValue;
+                record = `${keyValue}: ${strValue}`;
             }
             allResults.push(record);
             result = await iterator.next();
