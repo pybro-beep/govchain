@@ -39,6 +39,22 @@ class AssetTransfer extends Contract {
             }
         }
     }
+    async Purge(ctx, txid) {
+        const privateCollectionName = "SharedPrivateCollection";
+        // check if private data exists
+        const privateDataBytes = await ctx.stub.getPrivateData(privateCollectionName, txid);
+        if (!privateDataBytes || privateDataBytes.length === 0) {
+            throw new Error(`Private data of request ${txid} does not exist in collection ${privateCollectionName}`);
+        }
+        // if it does, delete it
+        ctx.deletePrivateDate(privateCollectionName, txid);
+        // remove TTL, because no private data exists
+        const dataBytes = await ctx.stub.getState(txid);
+        const data = JSON.parse(dataBytes.toString());
+        delete data.ttl;
+        await ctx.stub.putState(txid, data);
+        return txid;
+    }
     async SetStatus(ctx, requestTxid, responseTxid) {
         const dataBytes = await ctx.stub.getState(requestTxid);
         if (!dataBytes || dataBytes.length === 0) {
@@ -65,7 +81,7 @@ class AssetTransfer extends Contract {
         const privateCollectionName = "SharedPrivateCollection";
         const privateDataBytes = await ctx.stub.getPrivateData(privateCollectionName, txid);
         if (!privateDataBytes || privateDataBytes.length === 0) {
-            throw new Error(`Request with transaction ID ${txid} does not exist in collection ${privateCollectionName}`);
+            throw new Error(`Private data of request ${txid} does not exist in collection ${privateCollectionName}`);
         }
         return JSON.parse(privateDataBytes.toString());
     }

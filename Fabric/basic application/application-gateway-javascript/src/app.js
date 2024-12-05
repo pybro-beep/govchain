@@ -187,7 +187,7 @@ async function newSigner() {
 async function handleTTL(contract, payload, txid) {
     // used for purging private data from all peers if it has not happened automatically because of blocksToLive of the collection
     if (!payload.ttl) {
-        console.log(`ERROR (handleTTL): was called on payload which does not have a TTL`);
+        console.log(`ERROR (handleTTL): was called on payload which does not have a TTL property`);
         return;
     }
     const creationTime = new Date(Date.parse(payload.timestamp));
@@ -195,6 +195,7 @@ async function handleTTL(contract, payload, txid) {
     const timeToLive = new Date().setDate(creationTime.getDate() + payload.ttl);
     if (currentTime.getDate() > timeToLive.getDate()) {
         // TODO: purge private data
+        contract.submitTransaction('Purge', JSON.stringify(txid));
         console.log(`SUCCESS (handleTTL): purged private data of ${txid}`);
     }
 }
@@ -207,6 +208,8 @@ async function handleResponse(contract, payload, txid) {
     } else {
         console.log(`SUCCESS (handleResponse): response ${txid} does not respond to a request of ${mspId}`);
     }
+    // responses contain sensitive data -> need to be purged
+    handleTTL(contract, payload, txid);
 }
 async function handleRequest(contract, payload, txid) {
     if (payload.requester == mspId) {
