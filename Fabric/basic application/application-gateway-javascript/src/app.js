@@ -118,28 +118,28 @@ async function main() {
                 "details": `frage personenbezogene daten von ${Math.random()*100000000} an.`
             };
             await createAsset(contract, pub, priv);
-            const events = await network.getChaincodeEvents(chaincodeName, {
-                startBlock: BigInt(0), // Ignored if the checkpointer has checkpoint state
-            });
         }
+        const events = await network.getChaincodeEvents(chaincodeName, {
+            startBlock: BigInt(0), // Ignored if the checkpointer has checkpoint state
+        });
 
         try {
             for await (const event of events) {
                 const payloadBytes = utf8Decoder.decode(await event.payload)
-                const payload = JSON.parse(JSON.parse(payloadBytes)); // WARN: i could not find out why this needs to be parsed twice, but it does
+                const payload = JSON.parse(payloadBytes.toString()); // WARN: i could not find out why this needs to be parsed twice, but it does
                 if (payload.type == "request") {
-                    console.log(`STATUS (EventHandler): found new request ${event.transactionId}`)
-                    await handleRequest(contract, payload, event.transactionId);
+                    console.log(`STATUS (EventHandler): found new request ${event.transactionId} with payload ${JSON.stringify(payload)}`)
+                    await handleRequest(contract, payload, payload.txid);
                 } else if (payload.type == "response") {
-                    console.log(`STATUS (EventHandler): found new response ${event.transactionId}`)
-                    await handleResponse(contract, payload);
+                    console.log(`STATUS (EventHandler): found new response ${event.transactionId} with payload ${JSON.stringify(payload)}`)
+                    await handleResponse(contract, payload.txid);
                 } else {
-                    console.log(`STATUS (EventHandler): event has payload ${payload}`);
+                    console.log(`STATUS (EventHandler): event has payload ${JSON.stringify(payload)}`);
                 }
             }
         } catch (err) {
             // Connection error
-            console.log("ERROR (EventHandler):")
+            console.error(`ERROR (EventHandler):`)
             console.error(err)
         } finally {
             events.close();
@@ -228,9 +228,10 @@ async function handleRequest(contract, payload, txid) {
     const priv = { // replacement for internal logic of Org
         "details": "personenbezogene Daten"
     };
-    console.log(`STATUS (handleRequest): responding to ${txid} with ${pub}`);
+    console.log(`STATUS (handleRequest): responding to ${txid} with ${JSON.stringify(pub)}`);
     const result_txid = await createAsset(contract, pub, priv)
     console.log(`\tSUCCESS (handleRequest): created response ${result_txid}`);
+    console.log(`\t STATE: ${txid} has public data: ${await getPublic(contract, txid)}`);
     const update = await setStatus(contract, txid, result_txid);
     console.log(`\tSUCCESS (handleRequest): updated status ${update}`);
 }
@@ -241,7 +242,6 @@ async function initLedger(contract) {
 async function setStatus(contract, requestTxid, resultTxid) {
     const result = await contract.submitTransaction('SetStatus', JSON.stringify(requestTxid), JSON.stringify(resultTxid));
     console.log(`SUCCESS (setStatus): set status of ${requestTxid}: ${JSON.parse(utf8Decoder.decode(result))}`)
-    result
 }
 async function getPublic(contract, txid) {
     console.log(`STATUS (getPublic): getting public for ${txid}`);
@@ -268,7 +268,7 @@ async function getAllAssets(contract) {
         '\n--> Evaluate Transaction: GetAllAssets, function returns all the current assets on the ledger'
     );
 
-    const resultBytes = await contract.evaluateTransaction('GetAllAssets');
+    const resultBytes = await contract.submitTransaction('GetAllAssets');
 
     const resultJson = utf8Decoder.decode(resultBytes);
     const result = JSON.parse(resultJson);
@@ -279,7 +279,7 @@ async function createAsset(contract, pub, priv) { //returns txid!
     try {
         const txid = await contract.submitTransaction('CreateAsset', JSON.stringify(pub), JSON.stringify(priv));
         console.log(`SUCCESS (createAsset): created asset ${utf8Decoder.decode(txid)}`);
-        return txid;
+        return utf8Decoder.decode(txid);
     } catch (err) {
         console.error(`ERROR (createAsset):`);
         console.error(err)

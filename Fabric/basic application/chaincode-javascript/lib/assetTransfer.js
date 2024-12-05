@@ -53,7 +53,7 @@ class AssetTransfer extends Contract {
         const data = JSON.parse(dataBytes.toString());
         delete data.ttl;
         await ctx.stub.putState(txid, data);
-        return txid;
+        return JSON.stringify(txid);
     }
     async SetStatus(ctx, requestTxid, responseTxid) {
         const dataBytes = await ctx.stub.getState(requestTxid);
@@ -68,14 +68,14 @@ class AssetTransfer extends Contract {
         }
         data.status = responseTxid;
         await ctx.stub.putState(requestTxid, Buffer.from(JSON.stringify(data)));
-        return responseTxid;
+        return responseTxid.toString();
     }
     async GetPublic(ctx, txid) {
         const publicDataBytes = await ctx.stub.getState(txid);
         if (!publicDataBytes || publicDataBytes.length === 0) {
-            throw new Error(`Request with transaction ID ${txid}: public data does not exist`);
+            throw new Error(`Request with transaction ID ${txid}: public data does not exist: ${publicDataBytes.toString()}`);
         }
-        return JSON.parse(publicDataBytes);
+        return publicDataBytes.toString();
     }
     async GetPrivate(ctx, txid) {
         const privateCollectionName = "SharedPrivateCollection";
@@ -83,7 +83,7 @@ class AssetTransfer extends Contract {
         if (!privateDataBytes || privateDataBytes.length === 0) {
             throw new Error(`Private data of request ${txid} does not exist in collection ${privateCollectionName}`);
         }
-        return JSON.parse(privateDataBytes.toString());
+        return privateDataBytes.toString();
     }
     // CreateAsset issues a new asset to the world state with given details.
     async CreateAsset(ctx, pub, priv) {
@@ -103,9 +103,11 @@ class AssetTransfer extends Contract {
         //         await ctx.stub.setEvent("newResponse");
         //     }
         // } else {
-        await ctx.stub.setEvent("CreateAsset", Buffer.from(JSON.stringify(pub)));
+        const pub_object = JSON.parse(pub);
+        pub_object.txid = txid;
+        await ctx.stub.setEvent("CreateAsset", Buffer.from(stringify(sortKeysRecursive(pub_object))));
         // }
-        return txid;
+        return txid.toString();
     }
     // create private asset by writing transient data
     async CreatePrivateAsset(ctx, id, color, size, owner, appraisedValue) {
