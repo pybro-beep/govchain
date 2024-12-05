@@ -10,7 +10,10 @@
 const stringify  = require('json-stringify-deterministic');
 const sortKeysRecursive  = require('sort-keys-recursive');
 const { Contract } = require('fabric-contract-api');
+const { TextDecoder } = require('node:util');
 
+
+const utf8Decoder = new TextDecoder();
 
 class AssetTransfer extends Contract {
     async InitLedger(ctx) {
@@ -60,12 +63,13 @@ class AssetTransfer extends Contract {
         if (!dataBytes || dataBytes.length === 0) {
             throw new Error(`state of ${requestTxid}: data does not exist`);
         }
-        const data = JSON.parse(dataBytes.toString());
+        let data = /*JSON.parse(*/utf8Decoder.decode(dataBytes.toString())/*)*/; // Buffer -> string -> utf8 -> parse to object Object
         // check if response exists
         const responseBytes = await ctx.stub.getState(responseTxid);
         if (!responseBytes || responseBytes.length === 0) {
             throw new Error(`response ${responseTxid} to ${requestTxid} does not exist`);
         }
+        throw new Error(`data is of type ${typeof(data)}: ${data}`);
         data.status = responseTxid;
         await ctx.stub.putState(requestTxid, Buffer.from(JSON.stringify(data)));
         return responseTxid.toString();
