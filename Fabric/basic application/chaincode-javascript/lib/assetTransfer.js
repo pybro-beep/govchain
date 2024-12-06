@@ -111,12 +111,13 @@ class AssetTransfer extends Contract {
         return key.toString();
     }
     async UpdatePrivate(ctx, priv, key) {
+        const privateCollectionName = "SharedPrivateCollection";
         const exists = await this.AssetExists(ctx, key);
         if (!exists) {
             throw new Error(`The asset ${key} does not exist -> should not be updated`);
         }
         // if done with dynamic collectionName -> could throw error if access is not allowed
-        await ctx.stub.putPrivateData(key, Buffer.from(stringify(sortKeysRecursive(priv))));
+        await ctx.stub.putPrivateData(privateCollectionName, key, Buffer.from(stringify(sortKeysRecursive(priv))));
         return key.toString();
     }
     // create private asset by writing transient data
