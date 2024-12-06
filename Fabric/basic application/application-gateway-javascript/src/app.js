@@ -239,9 +239,31 @@ async function initLedger(contract) {
     await contract.submitTransaction('InitLedger');
     console.log('SUCCESS (initLedger): initialized Ledger');
 }
-async function setStatus(contract, requestTxid, resultTxid) { //TODO: rewrite (use updateAsset instead, this is weird!)
-    const result = await contract.submitTransaction('SetStatus', requestTxid, resultTxid);
-    console.log(`SUCCESS (setStatus): set status of ${requestTxid}: ${JSON.parse(utf8Decoder.decode(result))}`)
+async function setStatus(contract, requestTxid, responseTxid) { //TODO: rewrite (use updateAsset instead, this is weird!)
+    const new_public = await getPublic();
+    new_public.status = responseTxid;
+    await updatePublic(contract, requestTxid, new_public)
+    console.log(`SUCCESS (setStatus): set status of ${requestTxid}: ${JSON.stringify(new_public)}`)
+}
+async function updatePublic(contract, pub, key) { //pub = object -> is stringified in chaincode call!
+    try {
+        const txid = await contract.submitTransaction('UpdatePublic', key, JSON.stringify(pub));
+        console.log(`SUCCESS (updatePublic): updated asset ${utf8Decoder.decode(txid)}`);
+        return utf8Decoder.decode(txid);
+    } catch (err) {
+        console.error(`ERROR (updatePrivate):`);
+        console.error(err)
+    }
+}
+async function updatePrivate(contract, priv, key) { //returns txid!
+    try {
+        const txid = await contract.submitTransaction('UpdatePrivate', key, JSON.stringify(priv));
+        console.log(`SUCCESS (updatePrivate): updated asset ${utf8Decoder.decode(txid)}`);
+        return utf8Decoder.decode(txid);
+    } catch (err) {
+        console.error(`ERROR (updatePrivate):`);
+        console.error(err)
+    }
 }
 async function getPublic(contract, txid) {
     console.log(`STATUS (getPublic): getting public for ${txid}`);

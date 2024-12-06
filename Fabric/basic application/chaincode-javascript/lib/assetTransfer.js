@@ -58,22 +58,6 @@ class AssetTransfer extends Contract {
         await ctx.stub.putState(txid, data);
         return JSON.stringify(txid);
     }
-    async SetStatus(ctx, requestTxid, responseTxid) {
-        const dataBytes = await ctx.stub.getState(requestTxid);
-        if (!dataBytes || dataBytes.length === 0) {
-            throw new Error(`state of ${requestTxid}: data does not exist`);
-        }
-        let data = /*JSON.parse(*/utf8Decoder.decode(dataBytes.toString())/*)*/; // Buffer -> string -> utf8 -> parse to object Object
-        // check if response exists
-        const responseBytes = await ctx.stub.getState(responseTxid);
-        if (!responseBytes || responseBytes.length === 0) {
-            throw new Error(`response ${responseTxid} to ${requestTxid} does not exist`);
-        }
-        throw new Error(`data is of type ${typeof(data)}: ${data}`);
-        data.status = responseTxid;
-        await ctx.stub.putState(requestTxid, Buffer.from(JSON.stringify(data)));
-        return responseTxid.toString();
-    }
     async GetPublic(ctx, txid) {
         console.log(`txid used in GetPublic: ${txid}`)
         const publicDataBytes = await ctx.stub.getState(txid);
@@ -115,8 +99,25 @@ class AssetTransfer extends Contract {
         const pub_object = JSON.parse(pub);
         pub_object.txid = txid;
         await ctx.stub.setEvent("CreateAsset", Buffer.from(stringify(sortKeysRecursive(pub_object))));
-        // }
         return txid.toString();
+    }
+    async UpdatePublic(ctx, pub, key) {
+        const exists = await this.AssetExists(ctx, key);
+        if (!exists) {
+            throw new Error(`The asset ${key} does not exist -> should not be updated`);
+        }
+        // if done with dynamic collectionName -> could throw error if access is not allowed
+        await ctx.stub.putState(key, Buffer.from(stringify(sortKeysRecursive(pub))));
+        return key.toString();
+    }
+    async UpdatePrivate(ctx, priv, key) {
+        const exists = await this.AssetExists(ctx, key);
+        if (!exists) {
+            throw new Error(`The asset ${key} does not exist -> should not be updated`);
+        }
+        // if done with dynamic collectionName -> could throw error if access is not allowed
+        await ctx.stub.putPrivateData(key, Buffer.from(stringify(sortKeysRecursive(priv))));
+        return key.toString();
     }
     // create private asset by writing transient data
     async CreatePrivateAsset(ctx, id, color, size, owner, appraisedValue) {
