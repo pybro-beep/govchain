@@ -105,44 +105,45 @@ async function main() {
 
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
         // await initLedger(contract);
-        const n = 1
-        for (i = 0; i < n; i++) {
-            const pub = {
-                "requester": mspId,
-                "timestamp": new Date().toISOString(),
-                "type": "request",
-                "status": "pending",
-                "ttl": 2
-            };
-            const priv = {
-                "details": `frage personenbezogene daten von ${Math.random()*100000000} an.`
-            };
+        const pub = {
+            "requester": mspId,
+            "timestamp": new Date().toISOString(),
+            "type": "request",
+            "status": "pending",
+        };
+        const priv = {
+            "details": `frage personenbezogene daten von ${Math.random()*100000000} an.`
+        };
+        var assetList = await getAllAssets(contract);
+        if (assetList.length == 0) {
             await createAsset(contract, pub, priv);
+            var assetList = await getAllAssets(contract);
         }
-        const assetList = await getAllAssets(contract);
-        console.log(assetList);
+        // console.log(assetList);
         for (i = 0; i < assetList.length; i++) {
             metadata = JSON.parse(assetList[i].value);
+            console.log(`\n######### WORKING ON #########\n\tKEY: ${assetList[i].key}\n\tWITH DATA: ${JSON.stringify(metadata)}\n`);
             try {
                 // const public_data = JSON.parse(await getPublic(contract, assetList[i].key));
                 if (metadata.type === 'request') {
                     if (metadata.requester === mspId) {
-                        console.log(`skipping request ${assetList[i].key}: made by my MSP`)
+                        console.log(`\tSUCCESS (loop): skipping request ${assetList[i].key}: made by my MSP`)
                     } else {
                         await handleRequest(contract, metadata, assetList[i].key);
                     }
                 } else if (metadata.type === 'response') {
                     await handleResponse(contract, metadata, assetList[i].key);
                 } else {
-                    console.log (`no type for ${assetList[i].key}} ${metadata}`);
+                    console.log (`\tWARN (loop):no type for ${assetList[i].key}} ${metadata}`);
                 }
             } catch (err) {
                 console.error("error while looping over assets:");
                 console.error(err);
             }
         }
-        await getAllAssets(contract);
-        console.log(assetList);
+        var worldState = await getAllAssets(contract);
+        console.log(`\n############### WORLD STATE:`);
+        console.log(worldState);
     } finally {
         gateway.close();
         client.close();
@@ -185,76 +186,86 @@ async function newSigner() {
 }
 async function handleTTL(contract, payload, txid) {
     // used for purging private data from all peers if it has not happened automatically because of blocksToLive of the collection
-    if (!payload.ttl) {
-        console.log(`STATE (handleTTL): was called on payload which does not have a TTL property (${typeof(payload)}): ${payload}`);
+    if (!payload.ttl && payload.ttl != 0) {
+        console.log(`\tSTATE (handleTTL): was called on payload which does not have a TTL property (${typeof(payload)}): ${payload}`);
         return;
     }
     // calculate if TTL has ended
     const creationTime = new Date(Date.parse(payload.timestamp));
     const currentTime = new Date();
-    const timeToLive = new Date().setDate(creationTime.getDate() + payload.ttl);
+    var timeToLive = new Date(creationTime.toString());
+    timeToLive.setDate(timeToLive.getDate() + payload.ttl);
     // if TTL has ended, purge private data
-    if (currentTime.getDate() > timeToLive.getDate()) {
-        contract.submitTransaction('Purge', JSON.stringify(txid));
-        console.log(`SUCCESS (handleTTL): purged private data of ${txid} because TTL is ${(currentTime - timeToLive).toString()}`);
+    if (currentTime >= timeToLive) {
+        await contract.submitTransaction('Purge', txid);
+        console.log(`\tSTATE (handleTTL): purged private data of ${txid} because TTL is ${timeToLive.toString()} and current time is ${currentTime.toString()}`);
+        //FIXME: remove TTL of response
+        var new_public = JSON.parse(await getPublic(contract, txid));
+        delete new_public.ttl;
+        console.log(`\tSTATE (handleTTL): new metadata ${typeof(new_public)} without ttl: ${JSON.stringify(new_public)}`);;
+        await updatePublic(contract, JSON.stringify(new_public), txid);
+    } else {
+        console.log(`SUCCESS (handleTTL): current time: ${currentTime.toString()}, TTL: ${timeToLive.toString()}, TTL remaining: ${(timeToLive - currentTime).toString()}`)
     }
 }
 async function handleResponse(contract, payload, txid) {
-    if (!payload.request_to) {
-        console.log(`Attempted to handle invalid response: ${JSON.stringify(payload)}`)
+    if (!payload.response_to) {
+        console.log(`\tWARN (handleResponse): Attempted to handle response with no response_to attribute: ${JSON.stringify(payload)}`)
         return;
     }
-    const request = JSON.parse(getPublic(contract, payload.request_to.toString()));
+    const request = JSON.parse(await getPublic(contract, payload.response_to));
+    console.log(`\tSTATUS (handleResponse): request corresponding with response ${payload.response_to}: ${request}`);
     if (request.requester === mspId) {
-        console.log(`STATUS (handleResponse): status of request ${payload.request_to} is now ${request.status}\n
-        \tSUCCESS (handleResponse): got data for ${payload.request_to} from ${txid}`)
-        getPrivate(contract, txid);
+        const priv_data = await getPrivate(contract, txid);
+        console.log(`\tSTATUS (handleResponse): status of request ${payload.response_to} is now ${request.status}\n
+            \tSUCCESS (handleResponse): got private data for ${payload.response_to} from ${txid}:\n
+            \t\t${priv_data}`
+        );
     } else {
-        console.log(`SUCCESS (handleResponse): response ${txid} does not respond to a request of ${mspId}`);
+        console.log(`\tSUCCESS (handleResponse): response ${txid} responds to ${request.requester} which is not my Org (${mspId})`);
     }
     // responses contain sensitive data -> need to be purged
-    handleTTL(contract, payload, txid);
+    await handleTTL(contract, payload, txid);
 }
 async function handleRequest(contract, payload, txid) {
     if (!contract || !payload || !txid) {
         throw new Error(`missing properties: contract: ${typeof(contract)}, payload: ${typeof(payload)}, txid: ${typeof(txid)}`)
     }
     if (payload.requester == mspId) {
-        console.log(`SUCCESS (handleRequest): skipping request made by own org ${mspId}`);
+        console.log(`\tSUCCESS (handleRequest): skipping request made by own org ${mspId}`);
         return null;
     } else if (payload.status != "pending") {
-        console.log(`SUCCESS (handleRequest): skipping already answered request ${txid} with status ${payload.status}`);
+        console.log(`\tSUCCESS (handleRequest): skipping already answered request ${txid} with status ${payload.status}`);
         return null;
     }
     const pub = {
         "type": "response",
         "timestamp": new Date().toISOString(),
         "response_to": txid,
-        "ttl": 2
+        "ttl": 2 // days
     };
     const priv = { // replacement for internal logic of Org
         "details": "personenbezogene Daten"
     };
-    console.log(`STATUS (handleRequest): responding to ${txid} with ${JSON.stringify(pub)}`);
+    console.log(`\tSTATUS (handleRequest): request ${txid} has private data: ${await getPrivate(contract, txid)}`);
+    console.log(`\tSTATUS (handleRequest): responding to ${txid} with ${JSON.stringify(pub)}`);
     const result_txid = await createAsset(contract, pub, priv)
     console.log(`\tSUCCESS (handleRequest): created response ${result_txid}`);
-    console.log(`\t STATE: ${txid} has public data: ${await getPublic(contract, txid)}\n-> setting status of ${txid} with ${result_txid}`);
+    console.log(`\tSTATE(handleRequest): ${txid} has public data: ${await getPublic(contract, txid)}\n-> setting status of ${txid} with ${result_txid}`);
     const update = await setStatus(contract, txid, result_txid);
 }
 async function setStatus(contract, requestTxid, responseTxid) { 
     var new_public = await getPublic(contract, requestTxid);
-    console.log(`old status: ${new_public}`);
     new_public = JSON.parse(new_public);
     new_public.status = responseTxid;
     new_public = JSON.stringify(new_public);
-    console.log(`new status: ${new_public}`);
     await updatePublic(contract, new_public, requestTxid)
 }
-async function updatePublic(contract, pub, key) { //pub = object -> is stringified in chaincode call!
+async function updatePublic(contract, pub, key) {
     try {
-        console.log(`STATE (updatePublic): updating public of ${key}: ${pub}`)
+        console.log(`\tSTATE (updatePublic): updating public of ${key}: ${pub}`)
         const txid = await contract.submitTransaction('UpdatePublic', pub, key);
-        console.log(`SUCCESS (updatePublic): updated asset ${utf8Decoder.decode(txid)}`);
+        console.log(`\tSUCCESS (updatePublic): updated asset ${utf8Decoder.decode(txid)}`);
         return utf8Decoder.decode(txid);
     } catch (err) {
         console.error(`ERROR (updatePublic):`);
@@ -264,7 +275,7 @@ async function updatePublic(contract, pub, key) { //pub = object -> is stringifi
 async function updatePrivate(contract, priv, key) { //returns txid!
     try {
         const txid = await contract.submitTransaction('UpdatePrivate', JSON.stringify(priv), key);
-        console.log(`SUCCESS (updatePrivate): updated asset ${utf8Decoder.decode(txid)}`);
+        console.log(`\tSUCCESS (updatePrivate): updated asset ${utf8Decoder.decode(txid)}`);
         return utf8Decoder.decode(txid);
     } catch (err) {
         console.error(`ERROR (updatePrivate):`);
@@ -275,18 +286,18 @@ async function getPublic(contract, txid) {
     if (!contract || !txid) {
         throw new Error(`ERROR (getPublic): invalid arguments contract: ${typeof(contract)}, txid: ${typeof(txid)}`);
     }
-    console.log(`STATUS (getPublic): getting public for ${txid}`);
+    console.log(`\tSTATUS (getPublic): getting public for ${txid}`);
     let result
     result = JSON.parse(
         utf8Decoder.decode(
             await contract.submitTransaction('GetPublic', txid)
         )
     );
-    console.log(`\tSUCCESS (getPublic): ${result}`);
+    console.log(`\tSUCCESS (getPublic): ${txid} = ${result}`);
     return result
 }
 async function getPrivate(contract, txid) {
-    console.log(`STATUS (getPrivate): getting transient for ${txid}`);
+    console.log(`\tSTATUS (getPrivate): getting transient for ${txid}`);
     const result = JSON.parse(
         utf8Decoder.decode(
             await contract.evaluateTransaction('GetPrivate', txid)
@@ -306,7 +317,7 @@ async function getAllAssets(contract) {
 async function createAsset(contract, pub, priv) { //returns txid!
     try {
         const txid = await contract.submitTransaction('CreateAsset', JSON.stringify(pub), JSON.stringify(priv));
-        console.log(`SUCCESS (createAsset): created asset ${utf8Decoder.decode(txid)}`);
+        console.log(`\tSUCCESS (createAsset): created asset ${utf8Decoder.decode(txid)}`);
         return utf8Decoder.decode(txid);
     } catch (err) {
         console.error(`ERROR (createAsset):`);

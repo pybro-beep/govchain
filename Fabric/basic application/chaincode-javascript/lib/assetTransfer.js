@@ -50,13 +50,8 @@ class AssetTransfer extends Contract {
             throw new Error(`Private data of request ${txid} does not exist in collection ${privateCollectionName}`);
         }
         // if it does, delete it
-        ctx.deletePrivateDate(privateCollectionName, txid);
-        // remove TTL, because no private data exists
-        const dataBytes = await ctx.stub.getState(txid);
-        const data = JSON.parse(dataBytes.toString());
-        delete data.ttl;
-        await ctx.stub.putState(txid, data);
-        return JSON.stringify(txid);
+        ctx.stub.deletePrivateData(privateCollectionName, txid);
+        return txid;
     }
     async GetPublic(ctx, txid) {
         console.log(`txid used in GetPublic: ${txid}`)
@@ -72,7 +67,7 @@ class AssetTransfer extends Contract {
         const privateCollectionName = "SharedPrivateCollection";
         const privateDataBytes = await ctx.stub.getPrivateData(privateCollectionName, txid);
         if (!privateDataBytes || privateDataBytes.length === 0) {
-            throw new Error(`Private data of request ${txid} of type ${typeof(txid)} does not exist in collection ${privateCollectionName}`);
+            throw new Error(`Private data of request ${txid} does not exist in collection ${privateCollectionName}`);
         }
         return privateDataBytes.toString();
     }
