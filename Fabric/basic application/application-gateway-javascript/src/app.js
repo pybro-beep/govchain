@@ -141,6 +141,8 @@ async function main() {
                 console.error(err);
             }
         }
+        await getAllAssets(contract);
+        console.log(assetList);
     } finally {
         gateway.close();
         client.close();
@@ -200,6 +202,7 @@ async function handleTTL(contract, payload, txid) {
 async function handleResponse(contract, payload, txid) {
     if (!payload.request_to) {
         console.log(`Attempted to handle invalid response: ${JSON.stringify(payload)}`)
+        return;
     }
     const request = JSON.parse(getPublic(contract, payload.request_to.toString()));
     if (request.requester === mspId) {
@@ -213,6 +216,9 @@ async function handleResponse(contract, payload, txid) {
     handleTTL(contract, payload, txid);
 }
 async function handleRequest(contract, payload, txid) {
+    if (!contract || !payload || !txid) {
+        throw new Error(`missing properties: contract: ${typeof(contract)}, payload: ${typeof(payload)}, txid: ${typeof(txid)}`)
+    }
     if (payload.requester == mspId) {
         console.log(`SUCCESS (handleRequest): skipping request made by own org ${mspId}`);
         return null;
@@ -232,29 +238,32 @@ async function handleRequest(contract, payload, txid) {
     console.log(`STATUS (handleRequest): responding to ${txid} with ${JSON.stringify(pub)}`);
     const result_txid = await createAsset(contract, pub, priv)
     console.log(`\tSUCCESS (handleRequest): created response ${result_txid}`);
-    console.log(`\t STATE: ${txid} has public data: ${await getPublic(contract, txid)}`);
+    console.log(`\t STATE: ${txid} has public data: ${await getPublic(contract, txid)}\n-> setting status of ${txid} with ${result_txid}`);
     const update = await setStatus(contract, txid, result_txid);
-    console.log(`\tSUCCESS (handleRequest): updated status ${update}`);
 }
 async function setStatus(contract, requestTxid, responseTxid) { 
-    const new_public = await getPublic();
+    var new_public = await getPublic(contract, requestTxid);
+    console.log(`old status: ${new_public}`);
+    new_public = JSON.parse(new_public);
     new_public.status = responseTxid;
-    await updatePublic(contract, requestTxid, new_public)
-    console.log(`SUCCESS (setStatus): set status of ${requestTxid}: ${JSON.stringify(new_public)}`)
+    new_public = JSON.stringify(new_public);
+    console.log(`new status: ${new_public}`);
+    await updatePublic(contract, new_public, requestTxid)
 }
 async function updatePublic(contract, pub, key) { //pub = object -> is stringified in chaincode call!
     try {
-        const txid = await contract.submitTransaction('UpdatePublic', key, JSON.stringify(pub));
+        console.log(`STATE (updatePublic): updating public of ${key}: ${pub}`)
+        const txid = await contract.submitTransaction('UpdatePublic', pub, key);
         console.log(`SUCCESS (updatePublic): updated asset ${utf8Decoder.decode(txid)}`);
         return utf8Decoder.decode(txid);
     } catch (err) {
-        console.error(`ERROR (updatePrivate):`);
+        console.error(`ERROR (updatePublic):`);
         console.error(err)
     }
 }
 async function updatePrivate(contract, priv, key) { //returns txid!
     try {
-        const txid = await contract.submitTransaction('UpdatePrivate', key, JSON.stringify(priv));
+        const txid = await contract.submitTransaction('UpdatePrivate', JSON.stringify(priv), key);
         console.log(`SUCCESS (updatePrivate): updated asset ${utf8Decoder.decode(txid)}`);
         return utf8Decoder.decode(txid);
     } catch (err) {
@@ -263,6 +272,9 @@ async function updatePrivate(contract, priv, key) { //returns txid!
     }
 }
 async function getPublic(contract, txid) {
+    if (!contract || !txid) {
+        throw new Error(`ERROR (getPublic): invalid arguments contract: ${typeof(contract)}, txid: ${typeof(txid)}`);
+    }
     console.log(`STATUS (getPublic): getting public for ${txid}`);
     let result
     result = JSON.parse(
