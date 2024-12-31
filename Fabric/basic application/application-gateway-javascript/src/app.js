@@ -118,6 +118,7 @@ async function main() {
         var assetList = await getAllAssets(contract);
         console.timeEnd("All Assets")
         console.log(`amount of assets: ${assetList.length}`)
+        var promises = [];
         if (assetList.length == 0) {
             var n = 100;
             for (i = 0; i < n; i++) {
@@ -125,12 +126,14 @@ async function main() {
                 priv = {
                     "details": `frage personenbezogene daten von ${Math.random()*100000000} an.`
                 };
-                await createAsset(contract, pub, priv);
+                promises.push(createAsset(contract, pub, priv));
             }
+            Promise.all(promises);
             var assetList = await getAllAssets(contract);
         }
         
         console.time(`work on ${assetList.length} assets`);
+        var promises = [];
         for (i = 0; i < assetList.length; i++) {
             metadata = JSON.parse(assetList[i].value);
             // console.log(`\n######### WORKING ON #########\n\tKEY: ${assetList[i].key}\n\tWITH DATA: ${JSON.stringify(metadata)}\n`);
@@ -141,10 +144,10 @@ async function main() {
                     if (metadata.requester === mspId) {
                         // console.log(`\tSUCCESS (loop): skipping request ${assetList[i].key}: made by my MSP`)
                     } else {
-                        await handleRequest(contract, metadata, assetList[i].key);
+                        promises.push(handleRequest(contract, metadata, assetList[i].key));
                     }
                 } else if (metadata.type === 'response') {
-                    await handleResponse(contract, metadata, assetList[i].key);
+                    promises.push(handleResponse(contract, metadata, assetList[i].key));
                 } else {
                     console.log (`\tWARN (loop):no type for ${assetList[i].key}} ${metadata}`);
                 }
@@ -155,6 +158,8 @@ async function main() {
                 console.timeEnd(metadata.type || "unknown");
             }
         }
+        Promise.all(promises); //await all promises created in this loop
+        console.timeEnd(`work on ${assetList.length} assets`);
         var worldState = await getAllAssets(contract);
         console.log(`\n############### WORLD STATE:`);
         console.log(worldState);
