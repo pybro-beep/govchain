@@ -114,20 +114,26 @@ async function main() {
         const priv = {
             "details": `frage personenbezogene daten von ${Math.random()*100000000} an.`
         };
+
+        console.time("All Assets")
         var assetList = await getAllAssets(contract);
+        console.timeEnd("All Assets")
+        console.log(`amount of assets: ${assetList.length}`)
         if (assetList.length == 0) {
             await createAsset(contract, pub, priv);
             var assetList = await getAllAssets(contract);
         }
-        // console.log(assetList);
+        
+        console.time(`work on ${assetList.length} assets`);
         for (i = 0; i < assetList.length; i++) {
             metadata = JSON.parse(assetList[i].value);
-            console.log(`\n######### WORKING ON #########\n\tKEY: ${assetList[i].key}\n\tWITH DATA: ${JSON.stringify(metadata)}\n`);
+            // console.log(`\n######### WORKING ON #########\n\tKEY: ${assetList[i].key}\n\tWITH DATA: ${JSON.stringify(metadata)}\n`);
+            console.time(metadata.type || "unknown");
             try {
                 // const public_data = JSON.parse(await getPublic(contract, assetList[i].key));
                 if (metadata.type === 'request') {
                     if (metadata.requester === mspId) {
-                        console.log(`\tSUCCESS (loop): skipping request ${assetList[i].key}: made by my MSP`)
+                        // console.log(`\tSUCCESS (loop): skipping request ${assetList[i].key}: made by my MSP`)
                     } else {
                         await handleRequest(contract, metadata, assetList[i].key);
                     }
@@ -139,6 +145,8 @@ async function main() {
             } catch (err) {
                 console.error("error while looping over assets:");
                 console.error(err);
+            } finally {
+                console.timeEnd(metadata.type || "unknown");
             }
         }
         var worldState = await getAllAssets(contract);
@@ -198,14 +206,13 @@ async function handleTTL(contract, payload, txid) {
     // if TTL has ended, purge private data
     if (currentTime >= timeToLive) {
         await contract.submitTransaction('Purge', txid);
-        console.log(`\tSTATE (handleTTL): purged private data of ${txid} because TTL is ${timeToLive.toString()} and current time is ${currentTime.toString()}`);
-        //FIXME: remove TTL of response
+        // console.log(`\tSTATE (handleTTL): purged private data of ${txid} because TTL is ${timeToLive.toString()} and current time is ${currentTime.toString()}`);
         var new_public = JSON.parse(await getPublic(contract, txid));
         delete new_public.ttl;
-        console.log(`\tSTATE (handleTTL): new metadata ${typeof(new_public)} without ttl: ${JSON.stringify(new_public)}`);;
+        // console.log(`\tSTATE (handleTTL): new metadata ${typeof(new_public)} without ttl: ${JSON.stringify(new_public)}`);;
         await updatePublic(contract, JSON.stringify(new_public), txid);
     } else {
-        console.log(`SUCCESS (handleTTL): current time: ${currentTime.toString()}, TTL: ${timeToLive.toString()}, TTL remaining: ${(timeToLive - currentTime).toString()}`)
+        // console.log(`SUCCESS (handleTTL): current time: ${currentTime.toString()}, TTL: ${timeToLive.toString()}, TTL remaining: ${(timeToLive - currentTime).toString()}`)
     }
 }
 async function handleResponse(contract, payload, txid) {
@@ -214,15 +221,15 @@ async function handleResponse(contract, payload, txid) {
         return;
     }
     const request = JSON.parse(await getPublic(contract, payload.response_to));
-    console.log(`\tSTATUS (handleResponse): request corresponding with response ${payload.response_to}: ${request}`);
+    // console.log(`\tSTATUS (handleResponse): request corresponding with response ${payload.response_to}: ${request}`);
     if (request.requester === mspId) {
         const priv_data = await getPrivate(contract, txid);
-        console.log(`\tSTATUS (handleResponse): status of request ${payload.response_to} is now ${request.status}\n
-            \tSUCCESS (handleResponse): got private data for ${payload.response_to} from ${txid}:\n
-            \t\t${priv_data}`
-        );
+        // console.log(`\tSTATUS (handleResponse): status of request ${payload.response_to} is now ${request.status}\n
+        //     \tSUCCESS (handleResponse): got private data for ${payload.response_to} from ${txid}:\n
+        //     \t\t${priv_data}`
+        // );
     } else {
-        console.log(`\tSUCCESS (handleResponse): response ${txid} responds to ${request.requester} which is not my Org (${mspId})`);
+        // console.log(`\tSUCCESS (handleResponse): response ${txid} responds to ${request.requester} which is not my Org (${mspId})`);
     }
     // responses contain sensitive data -> need to be purged
     await handleTTL(contract, payload, txid);
@@ -232,10 +239,10 @@ async function handleRequest(contract, payload, txid) {
         throw new Error(`missing properties: contract: ${typeof(contract)}, payload: ${typeof(payload)}, txid: ${typeof(txid)}`)
     }
     if (payload.requester == mspId) {
-        console.log(`\tSUCCESS (handleRequest): skipping request made by own org ${mspId}`);
+        // console.log(`\tSUCCESS (handleRequest): skipping request made by own org ${mspId}`);
         return null;
     } else if (payload.status != "pending") {
-        console.log(`\tSUCCESS (handleRequest): skipping already answered request ${txid} with status ${payload.status}`);
+        // console.log(`\tSUCCESS (handleRequest): skipping already answered request ${txid} with status ${payload.status}`);
         return null;
     }
     const pub = {
@@ -247,11 +254,11 @@ async function handleRequest(contract, payload, txid) {
     const priv = { // replacement for internal logic of Org
         "details": "personenbezogene Daten"
     };
-    console.log(`\tSTATUS (handleRequest): request ${txid} has private data: ${await getPrivate(contract, txid)}`);
-    console.log(`\tSTATUS (handleRequest): responding to ${txid} with ${JSON.stringify(pub)}`);
+    // console.log(`\tSTATUS (handleRequest): request ${txid} has private data: ${await getPrivate(contract, txid)}`);
+    // console.log(`\tSTATUS (handleRequest): responding to ${txid} with ${JSON.stringify(pub)}`);
     const result_txid = await createAsset(contract, pub, priv)
-    console.log(`\tSUCCESS (handleRequest): created response ${result_txid}`);
-    console.log(`\tSTATE(handleRequest): ${txid} has public data: ${await getPublic(contract, txid)}\n-> setting status of ${txid} with ${result_txid}`);
+    // console.log(`\tSUCCESS (handleRequest): created response ${result_txid}`);
+    // console.log(`\tSTATE(handleRequest): ${txid} has public data: ${await getPublic(contract, txid)}\n-> setting status of ${txid} with ${result_txid}`);
     const update = await setStatus(contract, txid, result_txid);
 }
 async function setStatus(contract, requestTxid, responseTxid) { 
@@ -263,9 +270,9 @@ async function setStatus(contract, requestTxid, responseTxid) {
 }
 async function updatePublic(contract, pub, key) {
     try {
-        console.log(`\tSTATE (updatePublic): updating public of ${key}: ${pub}`)
+        // console.log(`\tSTATE (updatePublic): updating public of ${key}: ${pub}`)
         const txid = await contract.submitTransaction('UpdatePublic', pub, key);
-        console.log(`\tSUCCESS (updatePublic): updated asset ${utf8Decoder.decode(txid)}`);
+        // console.log(`\tSUCCESS (updatePublic): updated asset ${utf8Decoder.decode(txid)}`);
         return utf8Decoder.decode(txid);
     } catch (err) {
         console.error(`ERROR (updatePublic):`);
@@ -275,7 +282,7 @@ async function updatePublic(contract, pub, key) {
 async function updatePrivate(contract, priv, key) { //returns txid!
     try {
         const txid = await contract.submitTransaction('UpdatePrivate', JSON.stringify(priv), key);
-        console.log(`\tSUCCESS (updatePrivate): updated asset ${utf8Decoder.decode(txid)}`);
+        // console.log(`\tSUCCESS (updatePrivate): updated asset ${utf8Decoder.decode(txid)}`);
         return utf8Decoder.decode(txid);
     } catch (err) {
         console.error(`ERROR (updatePrivate):`);
@@ -286,24 +293,24 @@ async function getPublic(contract, txid) {
     if (!contract || !txid) {
         throw new Error(`ERROR (getPublic): invalid arguments contract: ${typeof(contract)}, txid: ${typeof(txid)}`);
     }
-    console.log(`\tSTATUS (getPublic): getting public for ${txid}`);
+    // console.log(`\tSTATUS (getPublic): getting public for ${txid}`);
     let result
     result = JSON.parse(
         utf8Decoder.decode(
             await contract.submitTransaction('GetPublic', txid)
         )
     );
-    console.log(`\tSUCCESS (getPublic): ${txid} = ${result}`);
+    // console.log(`\tSUCCESS (getPublic): ${txid} = ${result}`);
     return result
 }
 async function getPrivate(contract, txid) {
-    console.log(`\tSTATUS (getPrivate): getting transient for ${txid}`);
+    // console.log(`\tSTATUS (getPrivate): getting transient for ${txid}`);
     const result = JSON.parse(
         utf8Decoder.decode(
             await contract.evaluateTransaction('GetPrivate', txid)
         )
     );
-    console.log(`\tSUCCESS (getPrivate): ${result}`);
+    // console.log(`\tSUCCESS (getPrivate): ${result}`);
     return result
 }
 async function getAllAssets(contract) {
@@ -317,7 +324,7 @@ async function getAllAssets(contract) {
 async function createAsset(contract, pub, priv) { //returns txid!
     try {
         const txid = await contract.submitTransaction('CreateAsset', JSON.stringify(pub), JSON.stringify(priv));
-        console.log(`\tSUCCESS (createAsset): created asset ${utf8Decoder.decode(txid)}`);
+        // console.log(`\tSUCCESS (createAsset): created asset ${utf8Decoder.decode(txid)}`);
         return utf8Decoder.decode(txid);
     } catch (err) {
         console.error(`ERROR (createAsset):`);
