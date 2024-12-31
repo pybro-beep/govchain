@@ -119,7 +119,7 @@ async function main() {
         console.timeEnd("All Assets")
         console.log(`amount of assets: ${assetList.length}`)
         if (assetList.length == 0) {
-            var n = 10;
+            var n = 100;
             for (i = 0; i < n; i++) {
                 pub["timestamp"] = new Date().toISOString();
                 priv = {
