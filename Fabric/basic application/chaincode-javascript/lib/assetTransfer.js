@@ -1,70 +1,31 @@
-/*
- * Copyright IBM Corp. All Rights Reserved.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-
 'use strict';
 
-// Deterministic JSON.stringify()
+// Deterministic JSON
 const stringify  = require('json-stringify-deterministic');
 const sortKeysRecursive  = require('sort-keys-recursive');
 const { Contract } = require('fabric-contract-api');
-const { TextDecoder } = require('node:util');
-
-
-const utf8Decoder = new TextDecoder();
 
 class AssetTransfer extends Contract {
-    async InitLedger(ctx) {
-        const assets = [
-            {
-                ID: 0,
-                Owner: 'N/A',
-            },
-            {
-                ID: 1,
-                Owner: 'N/A',
-            }
-        ];
-
-        for (const asset of assets) {
-            asset.docType = 'asset';
-            // example of how to write to world state deterministically
-            // use convetion of alphabetic order
-            // we insert data in alphabetic order using 'json-stringify-deterministic' and 'sort-keys-recursive'
-            // when retrieving data, in any lang, the order of data will be the same and consequently also the corresonding hash
-            try {
-                await ctx.stub.putState(asset.ID, Buffer.from(stringify(sortKeysRecursive(asset))));
-            } catch (err) {
-                console.log("Chaincode Error (InitLedger");
-                console.error(err);
-            }
-        }
-    }
     async Purge(ctx, txid) {
         const privateCollectionName = "SharedPrivateCollection";
         // check if private data exists
         const privateDataBytes = await ctx.stub.getPrivateData(privateCollectionName, txid);
         if (!privateDataBytes || privateDataBytes.length === 0) {
-            throw new Error(`Private data of request ${txid} does not exist in collection ${privateCollectionName}`);
+            // if it doesnt, it does not need to be deleted
+            return txid;
         }
         // if it does, delete it
         ctx.stub.deletePrivateData(privateCollectionName, txid);
-        // remove TTL, because te(txid, JSON.stringify(data));
         return txid;
     }
     async GetPublic(ctx, txid) {
-        console.log(`txid used in GetPublic: ${txid}`)
         const publicDataBytes = await ctx.stub.getState(txid);
-        // if (!publicDataBytes || publicDataBytes.length === 0) {
-        //     throw new Error(`Request with transaction ID ${txid} of type ${typeof(txid)}: public data does not exist: ${publicDataBytes.toString()}`);
-        // }
+        if (!publicDataBytes || publicDataBytes.length === 0) {
+            throw new Error(`Request with transaction ID ${txid}: state does not exist.}`);
+        }
         return publicDataBytes.toString();
     }
     async GetPrivate(ctx, txid) {
-        console.log(`txid used in GetPrivate: ${txid}`)
-        const publicDataBytes = await ctx.stub.getState(txid);
         const privateCollectionName = "SharedPrivateCollection";
         const privateDataBytes = await ctx.stub.getPrivateData(privateCollectionName, txid);
         if (!privateDataBytes || privateDataBytes.length === 0) {
@@ -77,21 +38,14 @@ class AssetTransfer extends Contract {
         const privateCollectionName = "SharedPrivateCollection";
         const txid = await ctx.stub.getTxID();
         const exists = await this.AssetExists(ctx, txid);
+        // CreateAsset should never be used to update an existing state -> throw an error if the asset exists
         if (exists) {
             throw new Error(`The asset ${txid} already exists`);
         }
-        // if done with dynamic collectionName -> could throw error if access is not allowed
         await ctx.stub.putState(txid, Buffer.from(stringify(sortKeysRecursive(pub))));
-        console.log(`txid used in putState: ${txid}`)
+        // if done with dynamic collectionName -> could throw error if access is not allowed
         await ctx.stub.putPrivateData(privateCollectionName, txid, Buffer.from(stringify(sortKeysRecursive(priv))));
-        console.log(`txid used in putPrivateData: ${txid}`)
-        
-        try {
-            const publicData = await this.GetPublic(ctx, txid);
-            console.log(`Retrieved public data for txid ${txid}: ${publicData}`);
-        } catch (err) {
-            console.error(`Error retrieving public data for txid ${txid}:`, err);
-        }
+
         const pub_object = JSON.parse(pub);
         pub_object.txid = txid;
         await ctx.stub.setEvent("CreateAsset", Buffer.from(stringify(sortKeysRecursive(pub_object))));
@@ -102,7 +56,6 @@ class AssetTransfer extends Contract {
         if (!exists) {
             throw new Error(`The asset ${key} does not exist -> should not be updated`);
         }
-        // if done with dynamic collectionName -> could throw error if access is not allowed
         await ctx.stub.putState(key, Buffer.from(stringify(sortKeysRecursive(pub))));
         return key.toString();
     }
