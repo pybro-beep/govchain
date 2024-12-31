@@ -105,22 +105,28 @@ async function main() {
 
         // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
         // await initLedger(contract);
-        const pub = {
+        var pub = {
             "requester": mspId,
             "timestamp": new Date().toISOString(),
             "type": "request",
             "status": "pending",
         };
-        const priv = {
+        var priv = {
             "details": `frage personenbezogene daten von ${Math.random()*100000000} an.`
         };
-
         console.time("All Assets")
         var assetList = await getAllAssets(contract);
         console.timeEnd("All Assets")
         console.log(`amount of assets: ${assetList.length}`)
         if (assetList.length == 0) {
-            await createAsset(contract, pub, priv);
+            var n = 10;
+            for (i = 0; i < n; i++) {
+                pub["timestamp"] = new Date().toISOString();
+                priv = {
+                    "details": `frage personenbezogene daten von ${Math.random()*100000000} an.`
+                };
+                await createAsset(contract, pub, priv);
+            }
             var assetList = await getAllAssets(contract);
         }
         
@@ -290,26 +296,30 @@ async function updatePrivate(contract, priv, key) { //returns txid!
     }
 }
 async function getPublic(contract, txid) {
+    console.time("get Metadata");
     if (!contract || !txid) {
         throw new Error(`ERROR (getPublic): invalid arguments contract: ${typeof(contract)}, txid: ${typeof(txid)}`);
     }
     // console.log(`\tSTATUS (getPublic): getting public for ${txid}`);
-    let result
+    let result;
     result = JSON.parse(
         utf8Decoder.decode(
             await contract.submitTransaction('GetPublic', txid)
         )
     );
+    console.timeEnd("get Metadata");
     // console.log(`\tSUCCESS (getPublic): ${txid} = ${result}`);
     return result
 }
 async function getPrivate(contract, txid) {
+    console.time("get Data");
     // console.log(`\tSTATUS (getPrivate): getting transient for ${txid}`);
     const result = JSON.parse(
         utf8Decoder.decode(
             await contract.evaluateTransaction('GetPrivate', txid)
         )
     );
+    console.timeEnd("get Data");
     // console.log(`\tSUCCESS (getPrivate): ${result}`);
     return result
 }
@@ -322,6 +332,7 @@ async function getAllAssets(contract) {
 }
 // NEW:
 async function createAsset(contract, pub, priv) { //returns txid!
+    console.time("create");
     try {
         const txid = await contract.submitTransaction('CreateAsset', JSON.stringify(pub), JSON.stringify(priv));
         // console.log(`\tSUCCESS (createAsset): created asset ${utf8Decoder.decode(txid)}`);
@@ -329,6 +340,8 @@ async function createAsset(contract, pub, priv) { //returns txid!
     } catch (err) {
         console.error(`ERROR (createAsset):`);
         console.error(err)
+    } finally {
+        console.timeEnd("create");
     }
 }
 /**
