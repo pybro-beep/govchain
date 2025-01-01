@@ -97,6 +97,7 @@ async function main() {
     });
 
     try {
+        console.time("Runtime")
         // Get a network instance representing the channel where the smart contract is deployed.
         const network = gateway.getNetwork(channelName);
 
@@ -128,7 +129,7 @@ async function main() {
                 };
                 promises.push(createAsset(contract, pub, priv));
             }
-            Promise.all(promises);
+            await Promise.allSettled(promises);
             var assetList = await getAllAssets(contract);
         }
         
@@ -137,7 +138,6 @@ async function main() {
         for (i = 0; i < assetList.length; i++) {
             metadata = JSON.parse(assetList[i].value);
             // console.log(`\n######### WORKING ON #########\n\tKEY: ${assetList[i].key}\n\tWITH DATA: ${JSON.stringify(metadata)}\n`);
-            console.time(metadata.type || "unknown");
             try {
                 // const public_data = JSON.parse(await getPublic(contract, assetList[i].key));
                 if (metadata.type === 'request') {
@@ -154,16 +154,17 @@ async function main() {
             } catch (err) {
                 console.error("error while looping over assets:");
                 console.error(err);
-            } finally {
-                console.timeEnd(metadata.type || "unknown");
             }
         }
-        Promise.all(promises); //await all promises created in this loop
+        await Promise.allSettled(promises); //await all promises created in this loop
         console.timeEnd(`work on ${assetList.length} assets`);
+        console.time("getAll");
         var worldState = await getAllAssets(contract);
-        console.log(`\n############### WORLD STATE:`);
-        console.log(worldState);
+        console.timeEnd("getAll");
+        // console.log(`\n############### WORLD STATE:`);
+        // console.log(worldState);
     } finally {
+        console.timeEnd("Runtime")
         gateway.close();
         client.close();
     }
@@ -227,8 +228,11 @@ async function handleTTL(contract, payload, txid) {
     }
 }
 async function handleResponse(contract, payload, txid) {
+    let stamp = `handleResponse STAMP(${Date.now()}-${Math.random().toString(36).substring(2, 8)})`;
+    console.time(stamp);
     if (!payload.response_to) {
         console.log(`\tWARN (handleResponse): Attempted to handle response with no response_to attribute: ${JSON.stringify(payload)}`)
+        console.timeEnd(stamp);
         return;
     }
     const request = JSON.parse(await getPublic(contract, payload.response_to));
@@ -244,15 +248,21 @@ async function handleResponse(contract, payload, txid) {
     }
     // responses contain sensitive data -> need to be purged
     await handleTTL(contract, payload, txid);
+    console.timeEnd(stamp);
 }
 async function handleRequest(contract, payload, txid) {
+    let stamp = `handleRequest STAMP(${Date.now()}-${Math.random().toString(36).substring(2, 8)})`;
+    console.time(stamp);
     if (!contract || !payload || !txid) {
+        console.timeEnd(stamp);
         throw new Error(`missing properties: contract: ${typeof(contract)}, payload: ${typeof(payload)}, txid: ${typeof(txid)}`)
     }
     if (payload.requester == mspId) {
+        console.timeEnd(stamp);
         // console.log(`\tSUCCESS (handleRequest): skipping request made by own org ${mspId}`);
         return null;
     } else if (payload.status != "pending") {
+        console.timeEnd(stamp);
         // console.log(`\tSUCCESS (handleRequest): skipping already answered request ${txid} with status ${payload.status}`);
         return null;
     }
@@ -271,6 +281,7 @@ async function handleRequest(contract, payload, txid) {
     // console.log(`\tSUCCESS (handleRequest): created response ${result_txid}`);
     // console.log(`\tSTATE(handleRequest): ${txid} has public data: ${await getPublic(contract, txid)}\n-> setting status of ${txid} with ${result_txid}`);
     const update = await setStatus(contract, txid, result_txid);
+    console.timeEnd(stamp);
 }
 async function setStatus(contract, requestTxid, responseTxid) { 
     var new_public = await getPublic(contract, requestTxid);
@@ -301,7 +312,8 @@ async function updatePrivate(contract, priv, key) { //returns txid!
     }
 }
 async function getPublic(contract, txid) {
-    console.time("get Metadata");
+    let stamp = `getMetadata STAMP(${Date.now()}-${Math.random().toString(36).substring(2, 8)})`;
+    console.time(stamp);
     if (!contract || !txid) {
         throw new Error(`ERROR (getPublic): invalid arguments contract: ${typeof(contract)}, txid: ${typeof(txid)}`);
     }
@@ -312,19 +324,20 @@ async function getPublic(contract, txid) {
             await contract.submitTransaction('GetPublic', txid)
         )
     );
-    console.timeEnd("get Metadata");
+    console.timeEnd(stamp);
     // console.log(`\tSUCCESS (getPublic): ${txid} = ${result}`);
     return result
 }
 async function getPrivate(contract, txid) {
-    console.time("get Data");
+    let stamp = `getData STAMP(${Date.now()}-${Math.random().toString(36).substring(2, 8)})`; // low likelyhood of collision even with multiple calls in the same millisecond
+    console.time(stamp);
     // console.log(`\tSTATUS (getPrivate): getting transient for ${txid}`);
     const result = JSON.parse(
         utf8Decoder.decode(
             await contract.evaluateTransaction('GetPrivate', txid)
         )
     );
-    console.timeEnd("get Data");
+    console.timeEnd(stamp);
     // console.log(`\tSUCCESS (getPrivate): ${result}`);
     return result
 }
@@ -337,7 +350,8 @@ async function getAllAssets(contract) {
 }
 // NEW:
 async function createAsset(contract, pub, priv) { //returns txid!
-    console.time("create");
+    let stamp = `create STAMP(${Date.now()}-${Math.random().toString(36).substring(2, 8)})`; // low likelyhood of collision even with multiple calls in the same millisecond
+    console.time(stamp);
     try {
         const txid = await contract.submitTransaction('CreateAsset', JSON.stringify(pub), JSON.stringify(priv));
         // console.log(`\tSUCCESS (createAsset): created asset ${utf8Decoder.decode(txid)}`);
@@ -346,7 +360,7 @@ async function createAsset(contract, pub, priv) { //returns txid!
         console.error(`ERROR (createAsset):`);
         console.error(err)
     } finally {
-        console.timeEnd("create");
+        console.timeEnd(stamp);
     }
 }
 /**
