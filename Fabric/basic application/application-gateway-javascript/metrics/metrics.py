@@ -11,8 +11,11 @@ if __name__ == "__main__":
         d = defaultdict(list)
         for group in capture_groups:
             if not group == None:
-                d[group.group(1)].append((float(group.group(2)), str(group.group(3))))
+                if (group.group(3) == 's'):
+                    d[group.group(1)].append(float(group.group(2)))
+                else: # milliseconds -> seconds
+                    d[group.group(1)].append(float(group.group(2)) / 1000)
         for k in d:
-            print(pd.DataFrame(d[k], columns=[k, "unit"]).median(numeric_only=True))
+            print(pd.DataFrame(d[k], columns=[k]).describe())
         
 
