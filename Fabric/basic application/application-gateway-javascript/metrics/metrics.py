@@ -1,11 +1,8 @@
 import re
 from collections import defaultdict
 import pandas as pd
-import matplotlib as plt
 
 if __name__ == "__main__":
-    # use regex with list comprehension to get time data
-    # with open(f'{os.getcwd()}Fabric\\basic application\\application-gateway-javascript\\metrics\\time.txt', "r") as file:
     with open(r'V:\_GH\govchain\Fabric\basic application\application-gateway-javascript\metrics\time.txt', "r") as file:
         capture_groups = [re.match(r"(?P<action>\w*) STAMP\(.*\): (?P<time>\d*\.\d*)(?P<unit>\w+)", line) for line in file]
         d = defaultdict(list)
