@@ -18,14 +18,14 @@ if __name__ == "__main__":
             df = pd.DataFrame(d[k], columns=[k]).describe()
             print(df)
             descriptions.append(df)
-        merged = pd.concat(descriptions, axis=1).drop(["count", "std"], axis=0)
+        merged = pd.concat(descriptions, axis=1).drop(["count", "std"], axis=0).drop(["handleRequest", "handleResponse"], axis=1)
         transposed = merged.T
 
         # Graph erstellen
         transposed.plot(kind='bar', figsize=(12, 6), width=0.8)
         plt.xlabel("Funktionsaufrufe", fontsize=16)
-        plt.ylabel("Milisekunden", fontsize=16)
-        plt.xticks(rotation=45, fontsize=16)
+        plt.ylabel("Sekunden", fontsize=16)
+        plt.xticks(rotation=0, fontsize=16)
         plt.grid(axis='y', linestyle='--', alpha=0.7)
 
         # Speichern
